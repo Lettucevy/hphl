@@ -15,8 +15,10 @@ private:
   // ---- sincronização de documentos ----
   void onDidOpen(const JsonValue& params);
   void onDidChange(const JsonValue& params);
+  void onDidSave(const JsonValue& params);
   void onDidClose(const JsonValue& params);
   void publishDiagnostics(const std::string& triggerUri);
+  std::string getUriForPath(const std::string& path) const;
   std::string docText(const std::string& path) const;
 
   // ---- análise ----
@@ -40,8 +42,9 @@ private:
   JsonValue completionItem(const std::string& label, int kind,
                            const std::string& detail);
 
-  std::map<std::string, std::string> documents_; // uri → texto
-  std::set<std::string> lastErrFiles_;            // canônicos que receberam diagnóstico
+  std::map<std::string, std::string> documents_;      // canonicalPath → texto em memória
+  std::map<std::string, std::string> canonicalToUri_; // canonicalPath → URI do cliente
+  std::set<std::string> lastErrFiles_;                // canônicos que receberam diagnóstico
   bool shutdown_ = false;
   bool exitRequested_ = false;
 

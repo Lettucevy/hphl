@@ -126,7 +126,7 @@ JsonValue LspServer::hover(const JsonValue& params) {
 
 JsonValue LspServer::locationFor(const Decl* d, const std::string& name) {
   JsonValue loc = JsonValue::makeObject();
-  loc["uri"] = JsonValue::makeString(pathToUri(d->filePath));
+  loc["uri"] = JsonValue::makeString(getUriForPath(d->filePath));
   std::string line = lineAt(docText(d->filePath), d->line - 1);
   // coluna do nome na linha (busca a 1ª ocorrência como identificador)
   int col = -1;
@@ -498,7 +498,7 @@ JsonValue LspServer::references(const JsonValue& params) {
   std::vector<std::string> searchFiles = an_.files;
   if (searchFiles.empty()) searchFiles.push_back(path);
   for (const auto& kv : documents_) {
-    std::string p = uriToPath(kv.first);
+    const std::string& p = kv.first;
     if (std::find(searchFiles.begin(), searchFiles.end(), p) == searchFiles.end()) {
       searchFiles.push_back(p);
     }
@@ -507,7 +507,7 @@ JsonValue LspServer::references(const JsonValue& params) {
   for (const auto& f : searchFiles) {
     std::string text = docText(f);
     if (text.empty()) continue;
-    std::string fUri = pathToUri(f);
+    std::string fUri = getUriForPath(f);
 
     std::istringstream stream(text);
     std::string curLine;

@@ -4,25 +4,40 @@
 void LspServer::onDidOpen(const JsonValue& params) {
   const JsonValue& td = params["textDocument"];
   std::string uri = td["uri"].asString();
-  documents_[uri] = td["text"].asString();
-  reanalyze(uriToPath(uri));
+  std::string path = uriToPath(uri);
+  std::string cpath = canonicalPath(path);
+  canonicalToUri_[cpath] = uri;
+  documents_[cpath] = td["text"].asString();
+  reanalyze(path);
   publishDiagnostics(uri);
 }
 
 void LspServer::onDidChange(const JsonValue& params) {
   std::string uri = params["textDocument"]["uri"].asString();
+  std::string path = uriToPath(uri);
+  std::string cpath = canonicalPath(path);
+  canonicalToUri_[cpath] = uri;
   const JsonValue& changes = params["contentChanges"];
   if (changes.isArray() && changes.size() > 0) {
     const JsonValue& last = changes.at(changes.size() - 1);
-    documents_[uri] = last["text"].asString();
+    documents_[cpath] = last["text"].asString();
   }
-  reanalyze(uriToPath(uri));
+  reanalyze(path);
+  publishDiagnostics(uri);
+}
+
+void LspServer::onDidSave(const JsonValue& params) {
+  std::string uri = params["textDocument"]["uri"].asString();
+  std::string path = uriToPath(uri);
+  reanalyze(path);
   publishDiagnostics(uri);
 }
 
 void LspServer::onDidClose(const JsonValue& params) {
   std::string uri = params["textDocument"]["uri"].asString();
-  documents_.erase(uri);
+  std::string cpath = canonicalPath(uriToPath(uri));
+  documents_.erase(cpath);
+  canonicalToUri_.erase(cpath);
   JsonValue msg = JsonValue::makeObject();
   msg["jsonrpc"] = JsonValue::makeString("2.0");
   msg["method"] = JsonValue::makeString("textDocument/publishDiagnostics");
@@ -32,8 +47,15 @@ void LspServer::onDidClose(const JsonValue& params) {
   writeFrame(msg.serialize());
 }
 
+std::string LspServer::getUriForPath(const std::string& path) const {
+  std::string cp = canonicalPath(path);
+  auto it = canonicalToUri_.find(cp);
+  if (it != canonicalToUri_.end()) return it->second;
+  return pathToUri(path);
+}
+
 std::string LspServer::docText(const std::string& path) const {
-  auto it = documents_.find(pathToUri(path));
+  auto it = documents_.find(canonicalPath(path));
   if (it != documents_.end()) return it->second;
   std::ifstream in(path, std::ios::binary);
   if (!in) return "";
@@ -49,7 +71,7 @@ void LspServer::reanalyze(const std::string& mainPath) {
   an_.errCol0 = -1;
 
   auto overlay = [this](const std::string& path) -> std::optional<std::string> {
-    auto it = documents_.find(pathToUri(path));
+    auto it = documents_.find(canonicalPath(path));
     if (it != documents_.end()) return it->second;
     return std::nullopt;
   };
@@ -139,7 +161,7 @@ void LspServer::publishDiagnostics(const std::string& triggerUri) {
     if (!triggerUri.empty() && canonicalPath(uriToPath(triggerUri)) == kv.first)
       publish(triggerUri);
     else
-      publish(pathToUri(kv.first));
+      publish(getUriForPath(kv.first));
     newErr.insert(kv.first);
     publishedAny = true;
   }
@@ -148,7 +170,7 @@ void LspServer::publishDiagnostics(const std::string& triggerUri) {
       if (!triggerUri.empty() && canonicalPath(uriToPath(triggerUri)) == f)
         publish(triggerUri);
       else
-        publish(pathToUri(f));
+        publish(getUriForPath(f));
       publishedAny = true;
     }
   lastErrFiles_ = newErr;

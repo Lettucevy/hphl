@@ -56,7 +56,12 @@ void LspServer::onMessage(const JsonValue& msg) {
   if (m == "initialize") {
     JsonValue result = JsonValue::makeObject();
     result["capabilities"] = JsonValue::makeObject();
-    result["capabilities"]["textDocumentSync"] = JsonValue::makeInt(1); // full
+    JsonValue tds = JsonValue::makeObject();
+    tds["openClose"] = JsonValue::makeBool(true);
+    tds["change"] = JsonValue::makeInt(1); // full
+    tds["save"] = JsonValue::makeObject();
+    tds["save"]["includeText"] = JsonValue::makeBool(false);
+    result["capabilities"]["textDocumentSync"] = tds;
     result["capabilities"]["hoverProvider"] = JsonValue::makeBool(true);
     result["capabilities"]["definitionProvider"] = JsonValue::makeBool(true);
     result["capabilities"]["documentSymbolProvider"] = JsonValue::makeBool(true);
@@ -92,6 +97,7 @@ void LspServer::onMessage(const JsonValue& msg) {
 
   if (m == "textDocument/didOpen") { onDidOpen(params); return; }
   if (m == "textDocument/didChange") { onDidChange(params); return; }
+  if (m == "textDocument/didSave") { onDidSave(params); return; }
   if (m == "textDocument/didClose") { onDidClose(params); return; }
 
   if (m == "textDocument/hover") { respond(id, hover(params)); return; }
