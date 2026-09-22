@@ -5,7 +5,7 @@
 $ErrorActionPreference = "Stop"
 
 $Version = "1.0.0"
-$Repo = "hphl/hphl"
+$Repo = "Lettucevy/hphl"
 $InstallDir = Join-Path $env:USERPROFILE ".hphl"
 $ZipName = "hphl-sdk-v$Version-windows-x64.zip"
 $DownloadUrl = "https://github.com/$Repo/releases/download/v$Version/$ZipName"

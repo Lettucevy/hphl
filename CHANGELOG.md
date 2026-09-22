@@ -259,8 +259,8 @@ All notable changes to the HP-HL project are documented here. The format follows
 
 ---
 
-[Unreleased]: https://github.com/hphl/hphl/compare/v0.93.0...HEAD
-[v0.93.0]: https://github.com/hphl/hphl/compare/v0.92.0...v0.93.0
-[v0.92.0]: https://github.com/hphl/hphl/compare/v0.91.0...v0.92.0
-[v0.91.0]: https://github.com/hphl/hphl/compare/v0.90.0...v0.91.0
-[v0.90.0]: https://github.com/hphl/hphl/compare/v0.89.0...v0.90.0
+[Unreleased]: https://github.com/Lettucevy/hphl/compare/v0.93.0...HEAD
+[v0.93.0]: https://github.com/Lettucevy/hphl/compare/v0.92.0...v0.93.0
+[v0.92.0]: https://github.com/Lettucevy/hphl/compare/v0.91.0...v0.92.0
+[v0.91.0]: https://github.com/Lettucevy/hphl/compare/v0.90.0...v0.91.0
+[v0.90.0]: https://github.com/Lettucevy/hphl/compare/v0.89.0...v0.90.0

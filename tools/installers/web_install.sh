@@ -7,7 +7,7 @@ set -e
 
 VERSION="1.0.0"
 INSTALL_DIR="$HOME/.hphl"
-REPO="hphl/hphl"
+REPO="Lettucevy/hphl"
 
 CYAN='\033[0;36m'
 GREEN='\033[0;32m'
