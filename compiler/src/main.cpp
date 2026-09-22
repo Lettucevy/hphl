@@ -369,7 +369,7 @@ bool parseArgs(int argc, char** argv, Options& opts) {
     std::string a = argv[i];
     if (a == "-h" || a == "--help") {
       opts.help = true;
-    } else if (a == "-V" || a == "--version") {
+    } else if (a == "-V" || a == "-v" || a == "--version") {
       opts.showVersion = true;
     } else if (a == "-o") {
       if (i + 1 >= argc) return false;
@@ -389,7 +389,7 @@ bool parseArgs(int argc, char** argv, Options& opts) {
       opts.dumpMir = true;
     } else if (a == "--ssa") {
       opts.ssa = true;
-    } else if (a == "--lsp") {
+    } else if (a == "--lsp" || a == "--stdio") {
       opts.lsp = true;
     } else if (a == "--dap") {
       opts.dap = true;

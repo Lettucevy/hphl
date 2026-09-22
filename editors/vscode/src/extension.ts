@@ -36,6 +36,24 @@ function findCompilerPath(): string {
     }
   }
 
+  // Check HPHL_HOME and standard installation paths
+  if (process.env.HPHL_HOME) {
+    const p = path.join(process.env.HPHL_HOME, 'bin', exeName);
+    if (fs.existsSync(p)) return p;
+  }
+
+  if (isWindows) {
+    const userProfile = process.env.USERPROFILE || '';
+    const winCandidates = [
+      path.join(userProfile, '.hphl', 'bin', exeName),
+      path.join('C:\\HPHL', 'bin', exeName),
+      path.join(process.env.ProgramFiles || 'C:\\Program Files', 'HPHL', 'bin', exeName)
+    ];
+    for (const p of winCandidates) {
+      if (fs.existsSync(p)) return p;
+    }
+  }
+
   // Fallback to searching PATH or simple command
   return exeName;
 }
