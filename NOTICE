@@ -1,0 +1,13 @@
+HP-HL Programming Language
+Copyright (c) 2026 Velaface
+
+This product includes software developed by Velaface (https://velaface.com).
+
+Website: https://velaface.com/hphl
+Official Documentation: https://velaface.com/hphl/docs.html
+Source Repository: https://github.com/hphl/hphl
+
+Third-Party Components & Acknowledgments:
+- LLVM Compiler Infrastructure (Apache License 2.0 with LLVM Exceptions)
+- Inno Setup by Jordan Russell & Martijn Laan (Inno Setup License)
+- Remix Icon by Remix Design Studio (Apache License 2.0)

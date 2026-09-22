@@ -1,0 +1,17 @@
+// dbg_teste6.hphl: Multithreaded debugging and thread-specific step/continue
+// workers; pausa por thread: continue <tid> resumiu só aquela thread)
+void Tarefa(int n) {
+	for (int i = 0; i < 3; i++) {
+		print("T");
+		print(n);
+		print(":");
+		print(i);
+		print("\n");
+	}
+}
+
+void Main() {
+	spawn task { Tarefa(1); }
+	spawn task { Tarefa(2); }
+	print("fim\n");
+}

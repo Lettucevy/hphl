@@ -1,0 +1,7 @@
+int Dobro(int x) {
+  return x * 2;
+}
+
+void Main() {
+  print(Dobro<i32>(5));
+}

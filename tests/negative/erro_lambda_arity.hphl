@@ -1,0 +1,7 @@
+// erro_lambda_arity.hphl
+// Chamada de lambda com aridade errada deve falhar na análise semântica
+
+void Main() {
+    var f = (x) => x + 1;
+    println(f(1, 2));
+}

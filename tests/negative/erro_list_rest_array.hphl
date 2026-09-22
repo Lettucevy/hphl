@@ -1,0 +1,13 @@
+// erro: `..resto` não vale em array (tamanho fixo)
+int[2] g = {1, 2};
+
+int f() {
+  return match (g) {
+    [a, ..rest] => 0,
+    _ => 1,
+  };
+}
+
+void Main() {
+  print(f(), "\n");
+}

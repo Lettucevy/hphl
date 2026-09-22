@@ -1,0 +1,17 @@
+// erro_pool_escape.hphl — objeto 'pool' devolvido ao freelist no retorno da
+// função; o chamador receberia memória reciclada pelo próximo alloc
+// (M11.5 Lifetime/POOL ESCAPE, spec §3)
+class P {
+    public int v;
+}
+
+P make() {
+    pool P p;
+    p.v = 77;
+    return p;
+}
+
+void Main() {
+    P q = make();
+    println(q.v);
+}

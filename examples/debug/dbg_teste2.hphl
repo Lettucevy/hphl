@@ -1,0 +1,25 @@
+// dbg_teste2.hphl: Debugger inspection of classes and multidimensional arrays
+class Pessoa {
+	int idade;
+	string nome;
+
+	Pessoa(int i, string n) {
+		this.idade = i;
+		this.nome = n;
+	}
+}
+
+int[2][3] mat = {{1, 2, 3}, {4, 5, 6}};
+
+void Main() {
+	Pessoa p = new Pessoa(30, "Ana");
+	int[2][3] m = mat;
+	int[3] arr = {10, 20, 30};
+	int x = 7;
+	print("mat[1][2] = ");
+	print(m[1][2]);
+	print("\n");
+	print("nome = ");
+	print(p.nome);
+	print("\n");
+}

@@ -1,0 +1,10 @@
+// erro: derive Equatable não suporta campos do tipo list no Milestone 2
+derive Equatable
+class Coordenadas {
+    list<int> valores;
+}
+
+void Main() {
+    Coordenadas c = new Coordenadas();
+    print("nunca");
+}

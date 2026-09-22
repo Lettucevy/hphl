@@ -1,0 +1,11 @@
+int f(int x) {
+    return match (x) {
+        Some(y) => y,
+        _ => 0,
+    };
+}
+
+void Main() {
+    print(f(3));
+    print("\n");
+}

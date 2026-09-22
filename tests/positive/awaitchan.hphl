@@ -1,0 +1,26 @@
+// awaitchan.hphl — `await ch.Receive()` (v0.24.0, spec §10): o Receive já
+// bloqueia até haver valor; `await` é açúcar sobre ele (e aceito onde um
+// payload é entregue sem manipular a task).
+//
+// Saída esperada:
+//   7
+//   done
+
+void Main() {
+    channel<int> ch = new channel<int>(4); // local: globais não têm `new` no M2
+
+    // produtor: envia 7 e termina (não precisa de espera — Send bloqueia até
+    // o buffer aceitar)
+    spawn {
+        ch.Send(7);
+    }
+
+    // consumidor: `await ch.Receive()` bloqueia até o valor chegar e devolve
+    // o payload — sem precisar de uma task<T> em mãos
+    int v = await ch.Receive();
+    print(v); // 7
+    print("\n");
+
+    print("done");
+    print("\n");
+}

@@ -1,0 +1,26 @@
+// A8: função retornando array
+int[3] MakeTriple() {
+    int[3] r = {10, 20, 30};
+    return r;
+}
+
+int[2][2] MakeMat() {
+    int[2][2] m = {{1, 2}, {3, 4}};
+    return m;
+}
+
+void Main() {
+    int[3] x = MakeTriple();
+    print(x[0]);
+    print("\n");
+    print(x[1]);
+    print("\n");
+    print(x[2]);
+    print("\n");
+
+    int[2][2] m = MakeMat();
+    print(m[0][0]);
+    print("\n");
+    print(m[1][1]);
+    print("\n");
+}

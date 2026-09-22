@@ -1,0 +1,11 @@
+// erro_require_fail.hphl - viola precondition (b == 0) -> assert em runtime.
+int Divide(int a, int b)
+    require b != 0
+{
+    return a / b;
+}
+
+void Main() {
+  print(Divide(1, 0));
+  print("\n");
+}

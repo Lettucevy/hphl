@@ -1,0 +1,7 @@
+class Conta {
+    private int saldo;
+}
+void Main() {
+    Conta c;
+    c.saldo = 10;
+}

@@ -1,0 +1,4 @@
+// erro_int_overflow.hphl — literal inteiro fora do intervalo representável (64 bits)
+void Main() {
+    int x = 999999999999999999999999999999999999999999999999999999;
+}

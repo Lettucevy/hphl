@@ -1,0 +1,35 @@
+// ModLib.hphl - module imported by modules.hphl (Milestone 2)
+// Tests both import formats: by name (from modules.hphl) and by path (here).
+
+module ModLib;
+
+import "ModMath.hphl";
+
+public int Double(int x) {
+    return x * 2;
+}
+
+int Apply(int x) {
+    return Double(x) + Triple(x);
+}
+
+int baseFactor = 10;
+
+enum Status {
+    READY,
+    BUSY,
+}
+
+class Point {
+    int x;
+    int y;
+
+    Point(int px, int py) {
+        this.x = px;
+        this.y = py;
+    }
+
+    int Sum() {
+        return this.x + this.y;
+    }
+}

@@ -1,0 +1,134 @@
+// ===========================================================================
+// selfhost/main.hphl — Driver do compilador self-host (raiz)
+// Importa os subsistemas de selfhost/src/
+// ===========================================================================
+
+import "src/ast/ast.hphl";
+import "src/frontend/token.hphl";
+import "src/frontend/lexer.hphl";
+import "src/frontend/parser.hphl";
+import "src/semantic/semantic.hphl";
+import "src/codegen/codegen.hphl";
+
+string gVisited;
+
+string DirOf(string p) {
+    int last = -1;
+    for (int i = 0; i < str_len(p); i++) {
+        string ch = sub_str(p, i, 1);
+        if (ch == "/" || ch == "\\") last = i;
+    }
+    if (last < 0) return ".";
+    return sub_str(p, 0, last);
+}
+
+string TrimLeft(string s) {
+    int i = 0;
+    while (i < str_len(s) && (sub_str(s, i, 1) == " " || sub_str(s, i, 1) == "\t" || sub_str(s, i, 1) == "\r")) {
+        i = i + 1;
+    }
+    return sub_str(s, i, str_len(s) - i);
+}
+
+string ImportTarget(string line) {
+    string t = TrimLeft(line);
+    if (!starts_with(t, "import ")) return "";
+    string rest = sub_str(t, 7, str_len(t) - 7);
+    rest = TrimLeft(rest);
+    if (sub_str(rest, 0, 1) == "\"") {
+        for (int i = 1; i < str_len(rest); i++) {
+            if (sub_str(rest, i, 1) == "\"") {
+                return sub_str(rest, 1, i - 1);
+            }
+        }
+        return "";
+    }
+    string nm = "";
+    for (int i = 0; i < str_len(rest); i++) {
+        string ch = sub_str(rest, i, 1);
+        if (ch == " " || ch == "\t" || ch == ";" || ch == "\r" || ch == "\n") break;
+        nm = nm + ch;
+    }
+    return nm;
+}
+
+string ResolveImport(string dir, string target) {
+    if (target == "") return "";
+    if (contains(target, "/") || contains(target, "\\")) return target;
+    if (contains(target, ".hphl")) return dir + "/" + target;
+    return dir + "/" + target + ".hphl";
+}
+
+string LoadMerged(string path) {
+    string key = "|" + path + "|";
+    if (contains(gVisited, key)) return "";
+    gVisited = gVisited + key;
+    string src = read_file(path);
+    if (src == "") return "";
+    string dir = DirOf(path);
+    string merged = "";
+    int n = str_len(src);
+    int start = 0;
+    for (int i = 0; i <= n; i++) {
+        if (i == n || sub_str(src, i, 1) == "\n") {
+            string line = sub_str(src, start, i - start);
+            string t = TrimLeft(line);
+            if (starts_with(t, "//")) {
+                merged = merged + line + "\n";
+            } else if (starts_with(t, "import ")) {
+                merged = merged + line + "\n";
+                string target = ImportTarget(line);
+                string full = ResolveImport(dir, target);
+                if (full != "") merged = merged + LoadMerged(full);
+            } else {
+                merged = merged + line + "\n";
+            }
+            start = i + 1;
+        }
+    }
+    return merged;
+}
+
+void Main() {
+    string srcpath = "selfhost/demo.hphl";
+    string tp = read_file("selfhost/target.txt");
+    if (tp != "") {
+        // remove \n/\r do fim
+        var ln = str_len(tp);
+        while (ln > 0) {
+            string c = sub_str(tp, ln - 1, 1);
+            if (c == "\n" || c == "\r") { ln = ln - 1; continue; }
+            break;
+        }
+        srcpath = sub_str(tp, 0, ln);
+        println("[sh] alvo: " + srcpath);
+    }
+    gVisited = "";
+    string src = LoadMerged(srcpath);
+    if (src == "") {
+        println("[sh] fonte não encontrado: " + srcpath);
+        return;
+    }
+    Parser p = new Parser(new Lexer(src));
+    println("[sh] parse: iniciando");
+    Decl prog = p.ParseProgram();
+    println("[sh] parse OK");
+    string dump = "";
+    Decl dd = prog;
+    while (dd != null) {
+        dump = dump + "[d] kind=" + dd.kind + " name=" + dd.name + " ret=" + dd.retType + "\n";
+        dd = dd.next;
+    }
+    write_file("selfhost_dump.txt", dump);
+    Semantic sem = new Semantic();
+    int errs = sem.CheckProgram(prog);
+    if (errs > 0) {
+        println("[sh] semantica: " + errs + " erro(s)");
+        return;
+    }
+    println("[sh] semantica OK");
+    CG cg = new CG();
+    cg.GenProgram(prog);
+    cg.FlushTo("selfhost_demo.s");
+    println("[sh] codegen ok: " + cg.ln + " linhas");
+}

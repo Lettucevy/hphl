@@ -1,0 +1,27 @@
+// generics_where.hphl: Extended where clauses, operator constraints, and capabilities
+public T Soma<T>(T a, T b) where T : supports + {
+    return a + b;
+}
+
+public T Primeiro<T>(list<T> xs) where T : sendable {
+    return xs[0];
+}
+
+void Main() {
+    print(Soma(2, 3));
+    print("\n");
+    print(Soma(1.5, 2.25));
+    print("\n");
+    print(Soma("olá ", "mundo"));
+    print("\n");
+
+    list<int> nums;
+    nums.Add(42);
+    list<string> nomes;
+    nomes.Add("ana");
+    print(Primeiro(nums));
+    print("\n");
+    print(Primeiro(nomes));
+    print("\n");
+    print("done");
+}

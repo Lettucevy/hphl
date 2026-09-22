@@ -1,0 +1,58 @@
+// binary-trees-12-pressure.hphl: maxDepth=12 with gc_pressure() per depth
+class Node {
+    int item;
+    Node left;
+    Node right;
+
+    Node(int item) {
+        this.item = item;
+        this.left = null;
+        this.right = null;
+    }
+}
+
+int itemCheck(Node node) {
+    if (node.left == null) return node.item;
+    return node.item + itemCheck(node.left) - itemCheck(node.right);
+}
+
+Node bottomUpTree(int item, int depth) {
+    if (depth > 0) {
+        Node l = bottomUpTree(2 * item - 1, depth - 1);
+        Node r = bottomUpTree(2 * item, depth - 1);
+        Node n = new Node(item);
+        n.left = l;
+        n.right = r;
+        return n;
+    }
+    return new Node(item);
+}
+
+void Main() {
+    int minDepth = 4;
+    int maxDepth = 12;
+    int stretchDepth = maxDepth + 1;
+    print("Stretching tree of depth ");
+    print(stretchDepth); print("\n");
+    int check = itemCheck(bottomUpTree(0, stretchDepth));
+    gc_pressure();
+    print("Item check: "); print(check); print("\n");
+    for (int depth = minDepth; depth <= maxDepth; depth += 2) {
+        int iterations = 1 << (maxDepth - depth + minDepth);
+        int sum = 0;
+        for (int i = 1; i <= iterations; i++) {
+            sum = sum + itemCheck(bottomUpTree(i, depth));
+            sum = sum - itemCheck(bottomUpTree(-i, depth));
+        }
+        gc_pressure();
+        print((iterations * 2));
+        print(" trees of depth "); print(depth);
+        print(" item check: "); print(sum);
+        print("\n");
+    }
+    print("Long lived tree of depth ");
+    print(maxDepth);
+    print(" item check: ");
+    print(itemCheck(bottomUpTree(0, maxDepth)));
+    print("\n");
+}

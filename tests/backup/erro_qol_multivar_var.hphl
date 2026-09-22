@@ -1,0 +1,6 @@
+module erro_qol_multivar_var;
+
+// M5 (v0.36.0) negativo: multi-decl com 'var' exige inicializador por nome
+void Main() {
+    var a, b;
+}

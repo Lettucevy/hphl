@@ -1,0 +1,81 @@
+// ===========================================================================
+// exemplos/properties.hphl - propriedades get/set (spec §19/20, pág. 55-56)
+// ===========================================================================
+
+class Jogador {
+  private int vida;
+  private string nome;
+
+  public int Vida {
+    get { return vida; }
+    set { if (value < 0) vida = 0; else vida = value; }
+  }
+
+  // só leitura: campo interno em vírgula
+  public int VidaMaxima {
+    get { return 100; }
+  }
+
+  // só escrita: validação no set; leitura via método
+  public string Nome {
+    set { if (value == "") nome = "sem nome"; else nome = value; }
+  }
+
+  public string ObterNome() {
+    return nome; // campo sem `this.` (spec §19)
+  }
+}
+
+class Auxiliar : Jogador {
+  public int Bonus() {
+    return Vida + 10; // propriedade herdada
+  }
+}
+
+class Termometro {
+  private double temp;
+  public double Temp {
+    get { return temp; }
+    set { if (value > 100.0) temp = 100.0; else temp = value; }
+  }
+}
+
+public int Main() {
+  Jogador p = new Jogador();
+  print("vida inicial: ");
+  print(p.Vida);
+  print("\n");
+
+  p.Vida = 150;
+  print("vida depois: ");
+  print(p.Vida);
+  print("\n");
+
+  p.Vida = -5; // set valida: zera
+  print("vida com valor negativo: ");
+  print(p.Vida);
+  print("\n");
+
+  print("max: ");
+  print(p.VidaMaxima);
+  print("\n");
+
+  p.Nome = "";
+  print("nome vazio vira: ");
+  print(p.ObterNome());
+  print("\n");
+
+  Auxiliar a = new Auxiliar();
+  a.Vida = 30;
+  print("bônus (propriedade herdada): ");
+  print(a.Bonus());
+  print("\n");
+
+  Termometro t = new Termometro();
+  t.Temp = 200.0; // satura em 100
+  print("temp: ");
+  print(t.Temp);
+  print("\n");
+
+  return 0;
+}

@@ -1,0 +1,6 @@
+interface I {
+  void F();
+}
+void Main() {
+  I i = new I();
+}

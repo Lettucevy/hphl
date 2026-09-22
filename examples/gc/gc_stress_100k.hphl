@@ -1,0 +1,42 @@
+// gc_stress_100k.hphl: 100,000 object allocation stress test
+class No {
+    int valor;
+    No prox;
+    No(int v) { this.valor = v; this.prox = null; }
+}
+void Main() {
+    print("GC stress 100k: alocando 100000 objetos...\n");
+    No head = null;
+    No cur = null;
+    int n = 100000;
+    for (int i = 0; i < n; i++) {
+        No nn = new No(i);
+        if (head == null) {
+            head = nn;
+            cur = nn;
+        } else {
+            if (cur != null) cur.prox = nn;
+            cur = nn;
+        }
+    }
+    int soma = 0;
+    cur = head;
+    int cnt = 0;
+    while (cur != null) {
+        soma += cur.valor;
+        cnt++;
+        cur = cur.prox;
+    }
+    print("cnt=");
+    print(cnt);
+    print(" soma=");
+    print(soma);
+    print("\n");
+    // soma 0+1+...+99999 = 4999950000 mas trunca int 32? HP-HL int é i64, então ok
+    // 100k*99999/2 = 4999950000
+    if (cnt == 100000) {
+        print("GC stress 100k PASS\n");
+    } else {
+        print("GC stress 100k FAIL\n");
+    }
+}

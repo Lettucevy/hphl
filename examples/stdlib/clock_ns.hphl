@@ -1,0 +1,23 @@
+// clock_ns.hphl: High-resolution nanosecond timer benchmark
+// O `clock()` do C tem resolução de ~ms; aqui usamos QueryPerformanceCounter
+// (precisão < 1 µs). Retorna int<64> em nanossegundos (int de 32 bits não
+// caberia nem 2 segundos; int<128> compila mas o M2 não tem aritmética de
+// 128 bits de verdade).
+void Main() {
+    int<64> a = clock_ns();
+    int<64> b = clock_ns();
+    print("delta = ");
+    print(b - a);
+    print(" ns\n");
+    int<64> t0 = clock_ns();
+    int i = 0;
+    int soma = 0;
+    while (i < 1000000) {
+        soma = soma + i;
+        i++;
+    }
+    print((clock_ns() - t0) / 1000);
+    print(" us para 1M somas (soma=");
+    print(soma);
+    print(")\n");
+}

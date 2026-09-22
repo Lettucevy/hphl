@@ -1,0 +1,13 @@
+// erro_spawn_array_escape.hphl — array local vive no FRAME da função;
+// capturá-lo em spawn é access violation garantida
+// (M11.4 Frame escape de arrays, spec §3)
+void foo() {
+    int[3] arr = {7, 8, 9};
+    spawn {
+        println(arr[0]);
+    }
+}
+
+void Main() {
+    foo();
+}

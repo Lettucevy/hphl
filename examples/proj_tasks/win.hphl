@@ -1,0 +1,2 @@
+module WinLog;
+int log(int n) { return n; }

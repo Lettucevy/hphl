@@ -1,0 +1,8 @@
+class Conta {
+    private int saldo;
+}
+class Vip : Conta {
+    public int X() { return saldo; }
+}
+void Main() {
+}

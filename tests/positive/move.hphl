@@ -1,0 +1,20 @@
+// move.hphl — semântica de MOVE entre referências politizadas
+// (M10.4 Safety, spec §3): `b = a` transfere a posse; usar `a` depois é
+// erro de compilação (USE AFTER MOVE) e o bloco é liberado uma única vez
+class Inimigo {
+    public int vida;
+}
+
+void Main() {
+    heap Inimigo a;
+    heap Inimigo b;
+    a.vida = 10;
+    b = a;              // MOVE: b assume a posse do objeto
+    println(b.vida);
+
+    // a origem pode receber posse nova e volta a ser válida
+    heap Inimigo c;
+    c.vida = 99;
+    a = c;
+    println(a.vida);
+}

@@ -1,0 +1,9 @@
+// ref/out/in não podem ter valor padrão
+public void F(ref int v = 5) {
+  v += 1;
+}
+
+public void Main() {
+  var x = 1;
+  F(ref x);
+}

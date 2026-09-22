@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>HPHL Snake — WebAssembly</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<main class="frame">
+  <header>
+    <h1>HPHL<span>Snake</span></h1>
+    <div class="badges">
+      <span class="badge">lógica em HP-HL → wasm32</span>
+      <span class="badge badge-dim">M10.5 · LLVM → wasm-ld</span>
+    </div>
+  </header>
+
+  <section class="hud">
+    <div class="hud-item">SCORE <b id="score">0</b></div>
+    <div class="hud-item">LEN <b id="len">4</b></div>
+    <div class="hud-item">VEL <b id="speed">1×</b></div>
+  </section>
+
+  <div class="board-wrap">
+    <canvas id="board" width="720" height="480"></canvas>
+    <div id="overlay" class="overlay hidden">
+      <p id="over-title">GAME OVER</p>
+      <p id="over-sub">score final: <b id="final">0</b></p>
+      <button id="restart">reiniciar [R]</button>
+    </div>
+  </div>
+
+  <footer>
+    <p>setas / WASD movem · <b>R</b> reinicia · a regra do jogo roda em
+       <b>HP-HL compilado para WebAssembly</b> — esta página só desenha.</p>
+  </footer>
+</main>
+<script type="module" src="game.js"></script>
+</body>
+</html>

@@ -1,0 +1,7 @@
+// erro_result_member_unknown.hphl
+// Acesso a membro inexistente em Result deve falhar na analise semantica
+
+void Main() {
+    Result<int, string> r = Ok(42);
+    int x = r.Foo;
+}

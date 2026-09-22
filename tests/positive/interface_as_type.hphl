@@ -1,0 +1,57 @@
+// interface_as_type.hphl - interface como tipo de dado (limitação removida):
+// variável, parâmetro, retorno e atribuição com dispatch virtual via vtable
+// da implementação concreta.
+
+interface Repo<T> {
+  T Get();
+  void Put(T v);
+}
+
+class IntRepo : Repo<int> {
+  int value;
+  IntRepo(int v) { this.value = v; }
+  int Get() { return this.value; }
+  void Put(int v) { this.value = v; }
+}
+
+class IntRepo2 : Repo<int> {
+  int value;
+  IntRepo2(int v) { this.value = v; }
+  int Get() { return this.value * 10; }
+  void Put(int v) { this.value = v; }
+}
+
+Repo<int> MakeRepo(int kind) {
+  if (kind == 1) return new IntRepo(5);
+  return new IntRepo2(7);
+}
+
+int Use(Repo<int> r) {
+  return r.Get();
+}
+
+void Main() {
+  // local de tipo interface + chamada virtual
+  Repo<int> a = new IntRepo(3);
+  assert(a.Get() == 3);
+  Repo<int> b = new IntRepo2(4);
+  assert(b.Get() == 40);
+
+  // interface como retorno e como parâmetro
+  assert(Use(MakeRepo(1)) == 5);
+  assert(Use(MakeRepo(2)) == 70);
+
+  // atribuição interface -> interface
+  a = b;
+  assert(a.Get() == 40);
+
+  // escrita através da interface atinge o objeto concreto
+  b.Put(9);
+  assert(b.Get() == 90);
+
+  // interface sem init nasce null
+  Repo<int> n;
+  assert(n == null);
+
+  print("interface_as_type ok\n");
+}

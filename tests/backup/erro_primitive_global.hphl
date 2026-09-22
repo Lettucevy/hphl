@@ -1,0 +1,10 @@
+// erro_primitive_global.hphl - teste negativo (v0.24.0): primitiva de
+// sincronização não pode ser global (a inicialização do handle roda no ponto
+// da declaração, que no M2 só existe em corpo de função).
+
+mutex m;
+
+void Main() {
+    m.Lock();
+    print("nunca");
+}

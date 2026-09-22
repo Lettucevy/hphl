@@ -1,0 +1,13 @@
+// erro: padrão de array deve ter exatamente o tamanho do array
+int[2] g = {1, 2};
+
+int f() {
+  return match (g) {
+    [a] => 0,
+    _ => 1,
+  };
+}
+
+void Main() {
+  print(f(), "\n");
+}

@@ -1,0 +1,18 @@
+// arena_reset.hphl — arena resetável (M11.9, spec §3): arena_reset()
+// recicla a frame-arena inteira; objetos declarados DEPOIS do reset são
+// frescos, e acessar os anteriores é erro de compilação (USE AFTER FREE)
+class P {
+    public int v;
+}
+
+void Main() {
+    arena P a;
+    a.v = 10;
+    println(a.v);
+
+    arena_reset(); // recicla todos os blocos da arena deste frame
+
+    arena P b;     // declaração pós-reset: objeto novo e válido
+    b.v = 20;
+    println(b.v);
+}

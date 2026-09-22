@@ -1,0 +1,75 @@
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs"
+     xmlns:ui="http://wixtoolset.org/schemas/v4/wxs/ui">
+  <Package Name="HP-HL SDK v1.0.0"
+           Manufacturer="HP-HL Team"
+           Version="1.0.0.0"
+           UpgradeCode="4C6D0446-A22C-4DF0-977E-9717FA0CE6CE"
+           Scope="perMachine">
+    <MajorUpgrade DowngradeErrorMessage="Uma versão mais recente do HP-HL SDK já está instalada." />
+    
+    <MediaTemplate EmbedCab="yes" CompressionLevel="high" />
+
+    <Icon Id="HphlIcon" SourceFile="assets\icon.ico" />
+    <Property Id="ARPPRODUCTICON" Value="HphlIcon" />
+    <Property Id="ARPHELPLINK" Value="https://hphl.dev/docs" />
+    <Property Id="ARPURLINFOABOUT" Value="https://hphl.dev" />
+
+    <StandardDirectory Id="ProgramFiles64Folder">
+      <Directory Id="INSTALLFOLDER" Name="HPHL">
+        <Directory Id="BinFolder" Name="bin" />
+        <Directory Id="RuntimeFolder" Name="runtime" />
+        <Directory Id="DocsFolder" Name="docs" />
+        <Directory Id="ExamplesFolder" Name="examples" />
+        <Directory Id="EditorsFolder" Name="editors" />
+        <Directory Id="AssetsFolder" Name="assets" />
+      </Directory>
+    </StandardDirectory>
+
+    <ComponentGroup Id="ProductComponents">
+      <!-- Compiler binary + Environment PATH and HPHL_HOME -->
+      <Component Id="HphlcBinary" Directory="BinFolder" Guid="6A36A082-C2B1-4AC3-A0A6-75DF3513AC55">
+        <File Id="hphlc.exe" Source="compiler\bin\hphlc.exe" KeyPath="yes" />
+        <Environment Id="UpdatePath" Name="PATH" Value="[BinFolder]" Action="set" Part="last" System="yes" />
+        <Environment Id="SetHphlHome" Name="HPHL_HOME" Value="[INSTALLFOLDER]" Action="set" System="yes" />
+      </Component>
+
+      <!-- README & License in Root -->
+      <Component Id="ReadmeFile" Directory="INSTALLFOLDER" Guid="68A0E4FF-E79B-4D1D-A2A6-787A5BC3021D">
+        <File Id="README.md" Source="README.md" KeyPath="yes" />
+      </Component>
+
+      <!-- Runtime Version -->
+      <Component Id="RuntimeVer" Directory="RuntimeFolder" Guid="64D5523E-BFE2-45DC-8367-72D9CC932C2A">
+        <File Id="runtime_version" Source="runtime\VERSION" KeyPath="yes" />
+      </Component>
+
+      <!-- Assets -->
+      <Component Id="AssetIcons" Directory="AssetsFolder" Guid="8C9D321F-E923-4BC3-84FD-2B60CC243910">
+        <File Id="logo.png" Source="assets\logo.png" KeyPath="yes" />
+        <File Id="banner.png" Source="assets\banner.png" />
+        <File Id="icon.ico" Source="assets\icon.ico" />
+      </Component>
+
+      <!-- VS Code Extension -->
+      <Component Id="VscodeExt" Directory="EditorsFolder" Guid="53BE602C-82BE-4C91-B780-DFBECC4091A2">
+        <File Id="hphl_vsix" Source="editors\vscode\hphl-1.0.0.vsix" KeyPath="yes" />
+        <File Id="install_bat" Source="editors\vscode\install_extension.bat" />
+        <File Id="install_ps1" Source="editors\vscode\install_extension.ps1" />
+      </Component>
+
+      <!-- Examples: Hello World -->
+      <Component Id="ExampleHello" Directory="ExamplesFolder" Guid="602CD18E-A3EF-45F4-A0D3-F8C4C873D4AE">
+        <File Id="hello.hphl" Source="tests\positive\hello.hphl" KeyPath="yes" />
+      </Component>
+    </ComponentGroup>
+
+    <!-- UI: Standard Minimal / Modern WixUI -->
+    <ui:WixUI Id="WixUI_InstallDir" InstallDirectory="INSTALLFOLDER" />
+    <WixVariable Id="WixUIDialogBmp" Value="assets\wizard_large.bmp" />
+    <WixVariable Id="WixUIBannerBmp" Value="assets\wizard_small.bmp" />
+
+    <Feature Id="ProductFeature" Title="HP-HL SDK" Level="1">
+      <ComponentGroupRef Id="ProductComponents" />
+    </Feature>
+  </Package>
+</Wix>

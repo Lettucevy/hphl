@@ -1,0 +1,20 @@
+# Exemplo de hphl.pkg.toml (M_RV1 H6)
+name = "demo_pkg"
+version = "0.1.0"
+entry = "demo.hphl"
+backend = "auto"  # auto | llvm | x64
+
+# Fontes do projeto
+sources = ["demo.hphl", "lib.hphl"]
+
+# Dependencias remotas
+[dependencies]
+hphl_stdlib = "^1.0"
+hphl_json   = "~2.3"
+
+# Tarefas (equivalente ao proj_tasks/app.hpproj)
+[tasks]
+lib = { sources = ["lib.hphl"], opts = "-O2" }
+app = { sources = ["demo.hphl"], deps = ["lib"] }
+win = { sources = ["win.hphl"], when = "os == \"windows\"" }
+lin = { sources = ["lin.hphl"], when = "os == \"linux\"" }

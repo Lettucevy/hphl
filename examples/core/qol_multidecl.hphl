@@ -1,0 +1,16 @@
+module qol_multidecl;
+
+// Multiple variable declarations on a single line
+void Main() {
+    float num1, num2, num3;
+    num1 = 1.5;
+    num2 = 2.5;
+    num3 = num1 + num2;
+    println("num1 = " + num1 + ", num2 = " + num2 + ", num3 = " + num3);
+
+    int a = 10, b = 20, c = a + b;
+    println("a = " + a + ", b = " + b + ", c = " + c);
+
+    var v1 = "um", v2 = "dois";
+    println("v1 = " + v1 + ", v2 = " + v2);
+}

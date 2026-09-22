@@ -1,0 +1,431 @@
+/*
+raytracer.hphl -- RC-8 (Sprint 5) + itens 2.12/2.13 (v0.95): raytracer real.
+
+Vec3/Ray/Sphere + interseção raio-esfera + Lambert/Phong + sombras +
+câmera + render paralelo (parallel foreach) com saída PNG (img_png_save).
+
+Cena: 5 esferas coloridas + chão xadrez (esfera gigante) + 2 luzes
+pontuais + fundo em gradiente. Rode e abra cena.png.
+*/
+module raytracer;
+
+class Vec3 {
+    public float<64> X;
+    public float<64> Y;
+    public float<64> Z;
+    public Vec3(float<64> x, float<64> y, float<64> z) { X = x; Y = y; Z = z; }
+
+    float<64> Dot(Vec3 o) {
+        float<64> a = X * o.X;
+        float<64> b = Y * o.Y;
+        float<64> c = Z * o.Z;
+        return a + b + c;
+    }
+
+    Vec3 Add(Vec3 o) {
+        return new Vec3(X + o.X, Y + o.Y, Z + o.Z);
+    }
+
+    Vec3 Sub(Vec3 o) {
+        return new Vec3(X - o.X, Y - o.Y, Z - o.Z);
+    }
+
+    Vec3 Mul(float<64> s) {
+        return new Vec3(X * s, Y * s, Z * s);
+    }
+
+    float<64> Len() {
+        float<64> d = this.Dot(this);
+        return sqrt(d);
+    }
+
+    Vec3 Norm() {
+        float<64> l = this.Len();
+        return new Vec3(X / l, Y / l, Z / l);
+    }
+}
+
+class Ray {
+    public Vec3 Origin;
+    public Vec3 Direction;
+    public Ray(Vec3 o, Vec3 d) { Origin = o; Direction = d; }
+}
+
+class Sphere {
+    public Vec3 Center;
+    public float<64> Radius;
+    public Vec3 Color;
+    public Sphere(Vec3 c, float<64> r, Vec3 col) { Center = c; Radius = r; Color = col; }
+
+    // Nearest intersection distance t (> 0.001) or -1.0 if no hit
+    float<64> Hit(Ray r) {
+        Vec3 oc = r.Origin.Sub(Center);
+        float<64> a = r.Direction.Dot(r.Direction);
+        float<64> b = oc.Dot(r.Direction);
+        float<64> cc = oc.Dot(oc) - Radius * Radius;
+        float<64> disc = b * b - a * cc;
+        if (disc < 0.0) return -1.0;
+        float<64> sq = sqrt(disc);
+        float<64> t1 = (-b - sq) / a;
+        if (t1 > 0.001) return t1;
+        float<64> t2 = (-b + sq) / a;
+        if (t2 > 0.001) return t2;
+        return -1.0;
+    }
+}
+
+/* Cena fixa (ids 1..5 esferas, 6 = chão; o kernel usa literais).
+S1 centro vermelho, S2 verde, S3 azul, S4 amarela, S5 ciano. */
+
+float<64> S1X() { return 0.0; }
+float<64> S1Y() { return 0.0; }
+float<64> S1Z() { return -5.0; }
+float<64> S1R() { return 1.0; }
+float<64> S2X() { return 2.2; }
+float<64> S2Y() { return 0.3; }
+float<64> S2Z() { return -6.0; }
+float<64> S2R() { return 1.0; }
+float<64> S3X() { return -2.2; }
+float<64> S3Y() { return -0.2; }
+float<64> S3Z() { return -6.0; }
+float<64> S3R() { return 1.0; }
+float<64> S4X() { return -1.4; }
+float<64> S4Y() { return 0.9; }
+float<64> S4Z() { return -4.0; }
+float<64> S4R() { return 0.6; }
+float<64> S5X() { return 1.6; }
+float<64> S5Y() { return -0.7; }
+float<64> S5Z() { return -4.2; }
+float<64> S5R() { return 0.5; }
+float<64> LightX() { return 5.0; }
+float<64> LightY() { return 5.0; }
+float<64> LightZ() { return 0.0; }
+float<64> Light2X() { return -4.0; }
+float<64> Light2Y() { return 3.0; }
+float<64> Light2Z() { return -2.0; }
+
+// ---- Pure computation kernel (floats only; thread-safe, zero allocations) ----
+
+// Sphere ray intersection distance or -1.0
+float<64> HitSphere(float<64> ox, float<64> oy, float<64> oz,
+                 float<64> dx, float<64> dy, float<64> dz,
+                 float<64> cx, float<64> cy, float<64> cz, float<64> r) {
+    float<64> ocx = ox - cx;
+    float<64> ocy = oy - cy;
+    float<64> ocz = oz - cz;
+    float<64> a = dx * dx + dy * dy + dz * dz;
+    float<64> b = ocx * dx + ocy * dy + ocz * dz;
+    float<64> c0 = ocx * ocx + ocy * ocy + ocz * ocz - r * r;
+    float<64> disc = b * b - a * c0;
+    if (disc < 0.0) return -1.0;
+    float<64> sq = sqrt(disc);
+    float<64> t1 = (-b - sq) / a;
+    if (t1 > 0.001) return t1;
+    float<64> t2 = (-b + sq) / a;
+    if (t2 > 0.001) return t2;
+    return -1.0;
+}
+
+// Shadow ray test: detects occluders between origin and maxT
+bool HitAny(float<64> ox, float<64> oy, float<64> oz,
+            float<64> dx, float<64> dy, float<64> dz, float<64> maxT) {
+    float<64> t1 = HitSphere(ox, oy, oz, dx, dy, dz, S1X(), S1Y(), S1Z(), S1R());
+    if (t1 > 0.001 && t1 < maxT) return true;
+    float<64> t2 = HitSphere(ox, oy, oz, dx, dy, dz, S2X(), S2Y(), S2Z(), S2R());
+    if (t2 > 0.001 && t2 < maxT) return true;
+    float<64> t3 = HitSphere(ox, oy, oz, dx, dy, dz, S3X(), S3Y(), S3Z(), S3R());
+    if (t3 > 0.001 && t3 < maxT) return true;
+    float<64> t4 = HitSphere(ox, oy, oz, dx, dy, dz, S4X(), S4Y(), S4Z(), S4R());
+    if (t4 > 0.001 && t4 < maxT) return true;
+    float<64> t5 = HitSphere(ox, oy, oz, dx, dy, dz, S5X(), S5Y(), S5Z(), S5R());
+    if (t5 > 0.001 && t5 < maxT) return true;
+    float<64> t6 = HitSphere(ox, oy, oz, dx, dy, dz, 0.0, -101.0, -4.0, 100.0);
+    if (t6 > 0.001 && t6 < maxT) return true;
+    return false;
+}
+
+float<64> Clamp01(float<64> v) {
+    if (v < 0.0) return 0.0;
+    if (v > 1.0) return 1.0;
+    return v;
+}
+
+// Checkerboard floor color at (x, z): 0.85 light / 0.12 dark
+float<64> Checker(float<64> x, float<64> z) {
+    int ix = (int)floor(x);
+    int iz = (int)floor(z);
+    int s = ix + iz;
+    int m = s - (s / 2) * 2;
+    if (m == 0) return 0.85;
+    if (m == -1) return 0.85;
+    return 0.12;
+}
+
+// Shadow check towards light source (Lambertian diffuse lighting)
+float<64> LightDiff(float<64> hx, float<64> hy, float<64> hz,
+                    float<64> nx, float<64> ny, float<64> nz,
+                    float<64> lx, float<64> ly, float<64> lz) {
+    float<64> vx = lx - hx;
+    float<64> vy = ly - hy;
+    float<64> vz = lz - hz;
+    float<64> ll = sqrt(vx * vx + vy * vy + vz * vz);
+    vx = vx / ll;
+    vy = vy / ll;
+    vz = vz / ll;
+    float<64> ex = hx + nx * 0.001;
+    float<64> ey = hy + ny * 0.001;
+    float<64> ez = hz + nz * 0.001;
+    bool sh = HitAny(ex, ey, ez, vx, vy, vz, ll);
+    if (sh) return 0.0;
+    float<64> d = nx * vx + ny * vy + nz * vz;
+    if (d < 0.0) return 0.0;
+    return d;
+}
+
+// Phong specular highlight (n.h)^32; 0 if in shadow
+float<64> LightSpec(float<64> hx, float<64> hy, float<64> hz,
+                    float<64> nx, float<64> ny, float<64> nz,
+                    float<64> dx, float<64> dy, float<64> dz,
+                    float<64> lx, float<64> ly, float<64> lz) {
+    float<64> vx = lx - hx;
+    float<64> vy = ly - hy;
+    float<64> vz = lz - hz;
+    float<64> ll = sqrt(vx * vx + vy * vy + vz * vz);
+    vx = vx / ll;
+    vy = vy / ll;
+    vz = vz / ll;
+    float<64> ex = hx + nx * 0.001;
+    float<64> ey = hy + ny * 0.001;
+    float<64> ez = hz + nz * 0.001;
+    bool sh = HitAny(ex, ey, ez, vx, vy, vz, ll);
+    if (sh) return 0.0;
+    float<64> wx = 0.0 - dx;
+    float<64> wy = 0.0 - dy;
+    float<64> wz = 0.0 - dz;
+    float<64> wl = sqrt(wx * wx + wy * wy + wz * wz);
+    wx = wx / wl;
+    wy = wy / wl;
+    wz = wz / wl;
+    float<64> qx = vx + wx;
+    float<64> qy = vy + wy;
+    float<64> qz = vz + wz;
+    float<64> ql = sqrt(qx * qx + qy * qy + qz * qz);
+    qx = qx / ql;
+    qy = qy / ql;
+    qz = qz / ql;
+    float<64> s0 = nx * qx + ny * qy + nz * qz;
+    if (s0 < 0.0) return 0.0;
+    float<64> s2 = s0 * s0;
+    float<64> s4 = s2 * s2;
+    float<64> s8 = s4 * s4;
+    float<64> s16 = s8 * s8;
+    return s16 * s16;
+}
+
+// Ray color calculation -> returns r/g/b in range [0, 255] via out parameters
+void ShadePixel(float<64> ox, float<64> oy, float<64> oz,
+                float<64> dx, float<64> dy, float<64> dz,
+                out int rr, out int gg, out int bb) {
+    float<64> best = -1.0;
+    int id = 0;
+    float<64> t1 = HitSphere(ox, oy, oz, dx, dy, dz, S1X(), S1Y(), S1Z(), S1R());
+    if (t1 > 0.001) {
+        best = t1;
+        id = 1;
+    }
+    float<64> t2 = HitSphere(ox, oy, oz, dx, dy, dz, S2X(), S2Y(), S2Z(), S2R());
+    if (t2 > 0.001) {
+        if (best < 0.0) {
+            best = t2;
+            id = 2;
+        } else if (t2 < best) {
+            best = t2;
+            id = 2;
+        }
+    }
+    float<64> t3 = HitSphere(ox, oy, oz, dx, dy, dz, S3X(), S3Y(), S3Z(), S3R());
+    if (t3 > 0.001) {
+        if (best < 0.0) {
+            best = t3;
+            id = 3;
+        } else if (t3 < best) {
+            best = t3;
+            id = 3;
+        }
+    }
+    float<64> t4 = HitSphere(ox, oy, oz, dx, dy, dz, S4X(), S4Y(), S4Z(), S4R());
+    if (t4 > 0.001) {
+        if (best < 0.0) {
+            best = t4;
+            id = 4;
+        } else if (t4 < best) {
+            best = t4;
+            id = 4;
+        }
+    }
+    float<64> t5 = HitSphere(ox, oy, oz, dx, dy, dz, S5X(), S5Y(), S5Z(), S5R());
+    if (t5 > 0.001) {
+        if (best < 0.0) {
+            best = t5;
+            id = 5;
+        } else if (t5 < best) {
+            best = t5;
+            id = 5;
+        }
+    }
+    float<64> t6 = HitSphere(ox, oy, oz, dx, dy, dz, 0.0, -101.0, -4.0, 100.0);
+    if (t6 > 0.001) {
+        if (best < 0.0) {
+            best = t6;
+            id = 6;
+        } else if (t6 < best) {
+            best = t6;
+            id = 6;
+        }
+    }
+    if (id == 0) {
+        // Sky gradient background (sky blue at zenith, white at horizon)
+        float<64> g = 0.5 * (dy + 1.0);
+        float<64> fr = 1.0 - 0.5 * g;
+        float<64> fg = 1.0 - 0.3 * g;
+        rr = (int)(fr * 255.0);
+        gg = (int)(fg * 255.0);
+        bb = 255;
+        return;
+    }
+    // Surface intersection point and normal vector
+    float<64> hx = ox + dx * best;
+    float<64> hy = oy + dy * best;
+    float<64> hz = oz + dz * best;
+    float<64> cx = S1X();
+    float<64> cy = S1Y();
+    float<64> cz = S1Z();
+    float<64> cr = 1.0;
+    float<64> cg = 0.2;
+    float<64> cb = 0.2;
+    float<64> rad = S1R();
+    if (id == 2) {
+        cx = S2X(); cy = S2Y(); cz = S2Z();
+        cr = 0.2; cg = 1.0; cb = 0.2;
+        rad = S2R();
+    }
+    if (id == 3) {
+        cx = S3X(); cy = S3Y(); cz = S3Z();
+        cr = 0.2; cg = 0.2; cb = 1.0;
+        rad = S3R();
+    }
+    if (id == 4) {
+        cx = S4X(); cy = S4Y(); cz = S4Z();
+        cr = 1.0; cg = 1.0; cb = 0.2;
+        rad = S4R();
+    }
+    if (id == 5) {
+        cx = S5X(); cy = S5Y(); cz = S5Z();
+        cr = 0.2; cg = 1.0; cb = 1.0;
+        rad = S5R();
+    }
+    if (id == 6) {
+        float<64> gcol = Checker(hx, hz);
+        cr = gcol; cg = gcol; cb = gcol;
+        cx = 0.0; cy = -101.0; cz = -4.0;
+        rad = 100.0;
+    }
+    float<64> nx = (hx - cx) / rad;
+    float<64> ny = (hy - cy) / rad;
+    float<64> nz = (hz - cz) / rad;
+    // Dual light sources (secondary light at 60% intensity)
+    float<64> d1 = LightDiff(hx, hy, hz, nx, ny, nz, LightX(), LightY(), LightZ());
+    float<64> s1 = LightSpec(hx, hy, hz, nx, ny, nz, dx, dy, dz, LightX(), LightY(), LightZ());
+    float<64> d2 = LightDiff(hx, hy, hz, nx, ny, nz, Light2X(), Light2Y(), Light2Z());
+    float<64> s2 = LightSpec(hx, hy, hz, nx, ny, nz, dx, dy, dz, Light2X(), Light2Y(), Light2Z());
+    float<64> amb = 0.15;
+    float<64> li = amb + d1 * 0.85 + d2 * 0.55;
+    float<64> sp = s1 * 0.5 + s2 * 0.3;
+    float<64> fr2 = cr * li + sp;
+    float<64> fg2 = cg * li + sp;
+    float<64> fb2 = cb * li + sp;
+    rr = (int)(Clamp01(fr2) * 255.0);
+    gg = (int)(Clamp01(fg2) * 255.0);
+    bb = (int)(Clamp01(fb2) * 255.0);
+}
+
+// ---- imagem ----
+int IMG_W() { return 1280; }
+int IMG_H() { return 720; }
+
+int[720] rows;
+int[2764800] pixels;
+
+void RenderRow(int y) {
+    int w = IMG_W();
+    int h = IMG_H();
+    float<64> aspect = 2.0;
+    int x = 0;
+    while (x < w) {
+        float<64> nx = ((x + 0.5) / w * 2.0 - 1.0) * aspect;
+        float<64> ny = 1.0 - (y + 0.5) / h * 2.0;
+        float<64> dl = sqrt(nx * nx + ny * ny + 1.0);
+        float<64> dx = nx / dl;
+        float<64> dy = ny / dl;
+        float<64> dz = -1.0 / dl;
+        int r = 0;
+        int g = 0;
+        int b = 0;
+        ShadePixel(0.0, 0.0, 0.0, dx, dy, dz, out r, out g, out b);
+        int px = (y * w + x) * 3;
+        pixels[px] = r;
+        pixels[px + 1] = g;
+        pixels[px + 2] = b;
+        x = x + 1;
+    }
+}
+
+void Main() {
+    // checks sequenciais silenciosos (stdout eh o PNG via arquivo)
+    Vec3 a = new Vec3(1.0, 2.0, 3.0);
+    Vec3 b = new Vec3(4.0, 5.0, 6.0);
+    assert(a.Dot(b) == 32.0);
+    Vec3 n = new Vec3(0.0, 0.0, 5.0);
+    Vec3 nn = n.Norm();
+    assert(nn.Z == 1.0);
+    Ray center = new Ray(new Vec3(0.0, 0.0, 0.0), new Vec3(0.0, 0.0, -1.0));
+    Sphere s1 = new Sphere(new Vec3(S1X(), S1Y(), S1Z()), S1R(), new Vec3(1.0, 0.2, 0.2));
+    float<64> t = s1.Hit(center);
+    assert(t > 3.9 && t < 4.1);
+    Ray miss = new Ray(new Vec3(0.0, 0.0, 0.0), new Vec3(0.0, 1.0, 0.0));
+    assert(s1.Hit(miss) < 0.0);
+    int cr = 0;
+    int cg = 0;
+    int cb = 0;
+    ShadePixel(0.0, 0.0, 0.0, 0.0, 0.0, -1.0, out cr, out cg, out cb);
+    assert(cr > 130 && cg < 120 && cb < 120);
+    assert(Checker(0.5, 0.5) > 0.8);
+    assert(Checker(1.5, 0.5) < 0.2);
+
+    // fileiras 0..H-1
+    int y = 0;
+    while (y < IMG_H()) {
+        rows[y] = y;
+        y = y + 1;
+    }
+    // Parallel line rendering (each thread writes independently to distinct scanlines)
+    parallel foreach (var yy in rows) {
+        RenderRow(yy);
+    }
+
+    // checagem pós-render no pixel central (esfera vermelha iluminada)
+    int cc = (360 * IMG_W() + 640) * 3;
+    assert(pixels[cc] > 100 && pixels[cc + 1] < 150 && pixels[cc + 2] < 150);
+
+    // copia o buffer global p/ list + salva PNG (img_png_save)
+    list<int> img = new list<int>();
+    int i = 0;
+    int npix = IMG_W() * IMG_H() * 3;
+    while (i < npix) {
+        img.Add(pixels[i]);
+        i = i + 1;
+    }
+    bool saved = img_png_save("cena.png", img, IMG_W(), IMG_H());
+    assert(saved);
+    print("cena.png ok\n");
+}

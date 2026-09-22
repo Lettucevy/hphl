@@ -1,0 +1,3052 @@
+module Parser;
+
+// ===========================================================================
+// selfhost/src/frontend/parser.hphl — Parser sintático em HP-HL
+// Espelha compiler/src/frontend/parser.h e parser.cpp
+// ===========================================================================
+
+import "token.hphl";
+import "lexer.hphl";
+import "../ast/ast.hphl";
+
+public class Parser {
+    Lexer lx;
+    Token cur;
+    Token pushed;   // M14.4c: pushback de 1 token (resolve `ident =` sem lookahead duplo)
+    bool hasPush;
+    int feCounter;
+    // M23.1 2.3: buffer temporÃ¡rio para parseGenericArgs (nÃ£o-reentrante; OK p/ parser top-down)
+    string[8] _pgaArgs;
+    string[32] _qAlias;
+    int _qAliasC;
+    string[16] _qMod;
+    int _qModC;
+    string[16] _qUseA;
+    string[16] _qUseT;
+    int _qUseC;
+
+    public Parser(Lexer lexer) {
+        this.lx = lexer;
+        this.cur = this.lx.Next();
+        this.hasPush = false;
+        this.feCounter = 0;
+        this._qAliasC = 0;
+        this._qModC = 0;
+        this._qUseC = 0;
+    }
+
+    void QAddAlias(string a) {
+        if (a == "") return;
+        for (int i = 0; i < this._qAliasC; i++) {
+            if (this._qAlias[i] == a) return;
+        }
+        if (this._qAliasC < 32) {
+            this._qAlias[this._qAliasC] = a;
+            this._qAliasC = this._qAliasC + 1;
+        }
+    }
+
+    void QAddMod(string m) {
+        if (m == "") return;
+        for (int i = 0; i < this._qModC; i++) {
+            if (this._qMod[i] == m) return;
+        }
+        if (this._qModC < 16) {
+            this._qMod[this._qModC] = m;
+            this._qModC = this._qModC + 1;
+        }
+    }
+
+    void QAddUsing(string a, string t) {
+        if (a == "" || t == "") return;
+        for (int i = 0; i < this._qUseC; i++) {
+            if (this._qUseA[i] == a) {
+                this._qUseT[i] = t;
+                return;
+            }
+        }
+        if (this._qUseC < 16) {
+            this._qUseA[this._qUseC] = a;
+            this._qUseT[this._qUseC] = t;
+            this._qUseC = this._qUseC + 1;
+        }
+    }
+
+    bool IsQualRoot(string nm) {
+        for (int i = 0; i < this._qAliasC; i++) {
+            if (this._qAlias[i] == nm) return true;
+        }
+        for (int i = 0; i < this._qModC; i++) {
+            if (this._qMod[i] == nm) return true;
+        }
+        return false;
+    }
+
+    string UsingTarget(string nm) {
+        for (int i = 0; i < this._qUseC; i++) {
+            if (this._qUseA[i] == nm) return this._qUseT[i];
+        }
+        return "";
+    }
+
+    string QHead(string q) {
+        for (int i = 0; i < str_len(q); i++) {
+            if (sub_str(q, i, 1) == ".") return sub_str(q, 0, i);
+        }
+        return q;
+    }
+
+    string QNameStem(string p) {
+        int last = -1;
+        for (int i = 0; i < str_len(p); i++) {
+            string ch = sub_str(p, i, 1);
+            if (ch == "/" || ch == "\\") last = i;
+        }
+        string f = sub_str(p, last + 1, str_len(p) - last - 1);
+        for (int i = 0; i < str_len(f); i++) {
+            if (sub_str(f, i, 1) == ".") return sub_str(f, 0, i);
+        }
+        return f;
+    }
+
+    string ResolveQName(string q) {
+        string name = q;
+        int guard = 0;
+        while (guard < 16) {
+            guard = guard + 1;
+            string head = this.QHead(name);
+            string rest = "";
+            if (str_len(name) > str_len(head)) rest = sub_str(name, str_len(head), str_len(name) - str_len(head));
+            string u = this.UsingTarget(head);
+            if (u != "") {
+                name = u + rest;
+                continue;
+            }
+            if (rest != "" && sub_str(rest, 0, 1) == "." && this.IsQualRoot(head)) {
+                name = sub_str(rest, 1, str_len(rest) - 1);
+                continue;
+            }
+            break;
+        }
+        return name;
+    }
+
+    Node BuildQualChain(string q) {
+        Node bse = null;
+        int start = 0;
+        for (int i = 0; i <= str_len(q); i++) {
+            if (i == str_len(q) || sub_str(q, i, 1) == ".") {
+                string seg = sub_str(q, start, i - start);
+                if (seg != "") {
+                    if (bse == null) bse = mkVar(seg);
+                    else bse = mkMember(bse, seg);
+                }
+                start = i + 1;
+            }
+        }
+        return bse;
+    }
+
+    Node ResolveBase(Node bse) {
+        int guard = 0;
+        while (guard < 16 && bse != null) {
+            guard = guard + 1;
+            if (bse.kind == NK.Var) {
+                string u = this.UsingTarget(bse.text);
+                if (u != "") {
+                    bse = this.BuildQualChain(u);
+                    continue;
+                }
+                if (this.IsQualRoot(bse.text)) return null;
+                return bse;
+            }
+            if (bse.kind == NK.Member && bse.left != null && bse.left.kind == NK.Var &&
+                bse.left.text != "this" && this.IsQualRoot(bse.left.text)) {
+                bse = mkVar(bse.text);
+                continue;
+            }
+            return bse;
+        }
+        return bse;
+    }
+
+    // M23.1 2.3: consome `<T, U, ...>` e popula this._pgaArgs (atÃ© 8). Retorna count.
+    // Cada arg Ã© um Ident/Keyword Ãºnico (sem generics aninhados). O codegen
+    // compÃµe o nome mangled: Caixa<T> â†’ "Caixa__T", Caixa<int,string> â†’ "Caixa__int_string".
+    // NÃ£o-reentrante â€” mas o parser Ã© top-down, entÃ£o nÃ£o hÃ¡ recursÃ£o via este mÃ©todo.
+    // Item 3 Fase 3: rollback especulativo â€” '<' pode ser comparaÃ§Ã£o (`i < 10`).
+    // Fase A valida (sÃ³ Ident/Keyword/Number/,/./<>/aninhados atÃ© '>' balanceado);
+    // se falhar, restaura o estado e retorna 0 (o '<' Ã© operador). Fase B roda o
+    // scan original para publicar em _pgaArgs.
+    bool AtAngleClose() {
+        if (this.AtPunct(">>")) {
+            Token gt = new Token(TokenKind.Punct, ">");
+            this.cur = gt;
+            this.pushed = gt;
+            this.hasPush = true;
+        }
+        return this.AtPunct(">");
+    }
+
+    int parseGenericArgs() {
+        if (!this.AtPunct("<")) return 0;
+        // snapshot do estado (lexer + token atual + pushback de 1 token)
+        int savePos = this.lx.pos;
+        Token saveCur = this.cur;
+        bool savePush = this.hasPush;
+        Token savePushed = this.pushed;
+        // Fase A: validacao sem efeitos colaterais
+        this.Advance(); // consome '<'
+        int depth = 1;
+        bool okArgs = false;
+        while (!this.AtEof()) {
+            if (this.AtPunct("<")) { depth = depth + 1; this.Advance(); continue; }
+            if (this.AtAngleClose()) {
+                depth = depth - 1;
+                this.Advance();
+                if (depth == 0) { okArgs = true; break; }
+                continue;
+            }
+            if (this.AtPunct(",")) { this.Advance(); continue; }
+            if (this.AtPunct(".")) { this.Advance(); continue; }
+            if (this.cur.kind == TokenKind.Ident || this.cur.kind == TokenKind.Keyword ||
+                    this.cur.kind == TokenKind.Number) { this.Advance(); continue; }
+            break; // token incompatÃ­vel com lista de generics â†’ rollback
+        }
+        // restaura de qualquer forma; Fase B republica se okArgs
+        this.lx.pos = savePos;
+        this.cur = saveCur;
+        this.hasPush = savePush;
+        this.pushed = savePushed;
+        if (!okArgs) return 0;
+        this.Advance(); // consome '<'
+        int count = 0;
+        while (!this.AtEof() && count < 8) {
+            if (this.AtAngleClose()) {
+                this.Advance();
+                return count;
+            }
+            if (this.AtPunct(",")) {
+                this.Advance();
+                continue;
+            }
+            if (this.cur.kind != TokenKind.Ident && this.cur.kind != TokenKind.Keyword &&
+                this.cur.kind != TokenKind.Number) {
+                break;
+            }
+            string arg = this.cur.text;
+            this.Advance();
+            if (this.AtPunct("<")) {
+                int d = 0;
+                for (;;) {
+                    if (this.AtEof()) break;
+                    if (this.AtPunct("<")) { d = d + 1; arg = arg + "<"; this.Advance(); continue; }
+                    if (this.AtAngleClose()) {
+                        arg = arg + ">";
+                        this.Advance();
+                        d = d - 1;
+                        if (d <= 0) break;
+                        continue;
+                    }
+                    arg = arg + this.cur.text;
+                    this.Advance();
+                }
+            }
+            if (count < 8) {
+                this._pgaArgs[count] = arg;
+                count = count + 1;
+            }
+        }
+        if (this.AtAngleClose()) { this.Advance(); }
+        return count;
+    }
+
+    void Advance() {
+        if (this.hasPush) {
+            this.cur = this.pushed;
+            this.hasPush = false;
+            return;
+        }
+        this.cur = this.lx.Next();
+    }
+
+    // desfaz o consumo do token `restoreTo`: cur volta a ele e o token
+    // seguinte jÃƒÂ¡ lido (`pending`) fica guardado para o prÃƒÂ³ximo Advance
+    void UndoAdvance(Token restoreTo, Token pending) {
+        this.cur = restoreTo;
+        this.pushed = pending;
+        this.hasPush = true;
+    }
+
+    bool AtEof() {
+        return this.cur.kind == TokenKind.Eof;
+    }
+
+    bool AtPunct(string p) {
+        return this.cur.kind == TokenKind.Punct && this.cur.text == p;
+    }
+
+    void ExpectPunct(string p) {
+        if (!this.AtPunct(p)) {
+            println("parser: esperado '" + p + "' obtido '" +
+                    (this.cur != null ? this.cur.text : "<null>") +
+                    "' hp=" + this.hasPush +
+                    " pos=" + this.lx.pos + " srclen=" + str_len(this.lx.src));
+            panic("parser: estado invalido");
+        }
+        this.Advance();
+    }
+
+    void AddNamedCallArg(Node call) {
+        string nm = "";
+        if (this.cur.kind == TokenKind.Ident || this.cur.kind == TokenKind.Keyword) {
+            int savePos = this.lx.pos;
+            Token saveCur = this.cur;
+            bool savePush = this.hasPush;
+            Token savePushed = this.pushed;
+            string cand = this.cur.text;
+            this.Advance();
+            bool isNamed = this.AtPunct(":");
+            this.lx.pos = savePos;
+            this.cur = saveCur;
+            this.hasPush = savePush;
+            this.pushed = savePushed;
+            if (isNamed) {
+                this.Advance();
+                this.Advance();
+                nm = cand;
+            }
+        }
+        Node e = this.ParseCallArg();
+        callAddArg(call, e);
+        if (call.argNamesC < 8) {
+            call.argNames[call.argNamesC] = nm;
+            call.argNamesC = call.argNamesC + 1;
+        }
+    }
+
+    Node ParseCallArg() {
+        string rk = "";
+        while (this.cur.kind == TokenKind.Keyword &&
+               (this.cur.text == "ref" || this.cur.text == "out" || this.cur.text == "in")) {
+            rk = this.cur.text;
+            this.Advance();
+        }
+        Node e = this.ParseExpr();
+        if (rk != "") e.refKind = rk;
+        return e;
+    }
+
+    // expr := ternário ?: sobre coalesce ??
+    public Node ParseExpr() {
+        Node c = this.ParseCoalesce();
+        if (this.AtPunct("?")) {
+            int savePos = this.lx.pos;
+            Token saveCur = this.cur;
+            bool savePush = this.hasPush;
+            Token savePushed = this.pushed;
+            this.Advance();
+            bool isPost = this.AtEof() || this.AtPunct(";") || this.AtPunct(",") ||
+                          this.AtPunct(")") || this.AtPunct("]") || this.AtPunct("}");
+            this.lx.pos = savePos;
+            this.cur = saveCur;
+            this.hasPush = savePush;
+            this.pushed = savePushed;
+            if (isPost) {
+                this.Advance();
+                Node tn = new Node();
+                tn.kind = NK.TryPost;
+                tn.left = c;
+                return tn;
+            }
+            this.Advance();
+            Node tn = new Node();
+            tn.kind = NK.Bin;
+            tn.op = "?";
+            tn.left = c;
+            tn.right = this.ParseExpr();
+            this.ExpectPunct(":");
+            tn.arg = this.ParseTernary();
+            return tn;
+        }
+        return c;
+    }
+
+    Node ParseTernary() {
+        return this.ParseExpr();
+    }
+
+    Node ParseCoalesce() {
+        Node l = this.ParseOr();
+        while (this.AtPunct("??")) {
+            this.Advance();
+            l = mkBin("??", l, this.ParseCoalesce());
+        }
+        return l;
+    }
+
+    Node ParseOr() {
+        Node l = this.ParseAnd();
+        while (this.AtPunct("||")) {
+            this.Advance();
+            l = mkBin("||", l, this.ParseAnd());
+        }
+        return l;
+    }
+
+    Node ParseAnd() {
+        Node l = this.ParseBitOr();
+        while (this.AtPunct("&&")) {
+            this.Advance();
+            l = mkBin("&&", l, this.ParseBitOr());
+        }
+        return l;
+    }
+
+    Node ParseBitOr() {
+        Node l = this.ParseBitXor();
+        while (this.AtPunct("|")) {
+            this.Advance();
+            l = mkBin("|", l, this.ParseBitXor());
+        }
+        return l;
+    }
+
+    Node ParseBitXor() {
+        Node l = this.ParseBitAnd();
+        while (this.AtPunct("^")) {
+            this.Advance();
+            l = mkBin("^", l, this.ParseBitAnd());
+        }
+        return l;
+    }
+
+    Node ParseBitAnd() {
+        Node l = this.ParseEq();
+        while (this.AtPunct("&")) {
+            this.Advance();
+            l = mkBin("&", l, this.ParseEq());
+        }
+        return l;
+    }
+
+    Node ParseEq() {
+        Node l = this.ParseRel();
+        while (this.AtPunct("==") || this.AtPunct("!=")) {
+            string op = this.cur.text;
+            this.Advance();
+            l = mkBin(op, l, this.ParseRel());
+        }
+        return l;
+    }
+
+    void ParseWhereClause(Decl d) {
+        bool first = true;
+        while (this.cur.text == "where") {
+            this.Advance();
+            if (first && (this.cur.kind == TokenKind.Ident || this.cur.kind == TokenKind.Keyword)) {
+                string wp = this.cur.text;
+                this.Advance();
+                if (this.AtPunct(":")) {
+                    this.Advance();
+                    string cons = "";
+                    while (!this.AtPunct("{") && !this.AtPunct(";") && this.cur.text != "where" && !this.AtEof()) {
+                        if (this.AtPunct(",")) {
+                            cons = cons + ",";
+                            this.Advance();
+                            continue;
+                        }
+                        if (cons != "" && sub_str(cons, str_len(cons) - 1, 1) != ",") cons = cons + " ";
+                        cons = cons + this.cur.text;
+                        this.Advance();
+                    }
+                    d.whereParam = wp;
+                    d.whereCons = cons;
+                    first = false;
+                    continue;
+                }
+            }
+            while (!this.AtPunct("{") && !this.AtPunct(";") && this.cur.text != "where" && !this.AtEof()) {
+                this.Advance();
+            }
+        }
+    }
+
+    void SkipContracts() {
+        while (this.cur.text == "require" || this.cur.text == "ensure") {
+            bool isReq = this.cur.text == "require";
+            this.Advance();
+            while (!this.AtPunct("{") && !this.AtEof()) {
+                if (isReq && this.cur.text == "ensure") break;
+                this.Advance();
+            }
+        }
+    }
+
+    void SkipAttributes() {
+        while (this.AtPunct("[")) {
+            int savePos = this.lx.pos;
+            Token saveCur = this.cur;
+            bool savePush = this.hasPush;
+            Token savePushed = this.pushed;
+            this.Advance();
+            if (!this.AtPunct("[")) {
+                this.lx.pos = savePos;
+                this.cur = saveCur;
+                this.hasPush = savePush;
+                this.pushed = savePushed;
+                break;
+            }
+            this.Advance();
+            while (!this.AtEof()) {
+                if (this.AtPunct("]")) {
+                    this.Advance();
+                    if (this.AtPunct("]")) {
+                        this.Advance();
+                        break;
+                    }
+                    continue;
+                }
+                this.Advance();
+            }
+        }
+    }
+
+    Stmt ParseParallel() {
+        this.Advance(); // 'parallel'
+        if (this.cur.text == "deterministic") {
+            this.Advance();
+            return this.ParseBlock();
+        }
+        if (this.cur.text == "foreach") {
+            return this.ParseForeach();
+        }
+        if (this.AtPunct("{")) {
+            Stmt pb = this.ParseBlock();
+            Stmt par = new Stmt();
+            par.kind = SK.Parallel;
+            par.body = pb;
+            return par;
+        }
+        return this.ParseStmt();
+    }
+
+    Stmt ParseLock() {
+        this.Advance(); // 'lock'
+        this.ExpectPunct("(");
+        Node ex = this.ParseExpr();
+        this.ExpectPunct(")");
+        Stmt b = this.ParseBlock();
+        Stmt pre = new Stmt();
+        pre.kind = SK.ExprStmt;
+        pre.expr = ex;
+        pre.next = b.body;
+        Stmt blk = new Stmt();
+        blk.kind = SK.Block;
+        blk.body = pre;
+        return blk;
+    }
+
+    Node ParseRel() {
+        Node l = this.ParseAdd();
+        while (this.AtPunct("<") || this.AtPunct(">") || this.AtPunct("<=") ||
+               this.AtPunct(">=")) {
+            string op = this.cur.text;
+            this.Advance();
+            l = mkBin(op, l, this.ParseAdd());
+        }
+        return l;
+    }
+
+    Node ParseAdd() {
+        Node l = this.ParseMul();
+        while (this.AtPunct("+") || this.AtPunct("-")) {
+            string op = this.cur.text;
+            this.Advance();
+            l = mkBin(op, l, this.ParseMul());
+        }
+        return l;
+    }
+
+    Node ParseMul() {
+        Node l = this.ParseUnary();
+        while (this.AtPunct("*") || this.AtPunct("/") || this.AtPunct("%")) {
+            string op = this.cur.text;
+            this.Advance();
+            l = mkBin(op, l, this.ParseUnary());
+        }
+        return l;
+    }
+
+    Node ParseUnary() {
+        if (this.AtPunct("-")) {
+            this.Advance();
+            return mkUn("-", this.ParseUnary());
+        }
+        if (this.AtPunct("!")) {
+            this.Advance();
+            return mkUn("!", this.ParseUnary());
+        }
+        if (this.AtPunct("~")) {
+            this.Advance();
+            return mkUn("~", this.ParseUnary());
+        }
+        if (this.AtPunct("++") || this.AtPunct("--")) {
+            string pop = this.cur.text == "++" ? "++pre" : "--pre";
+            this.Advance();
+            return mkUn(pop, this.ParseUnary());
+        }
+        return this.ParsePrimary();
+    }
+
+    Node ParsePrimary() {
+        if (this.cur.kind == TokenKind.Number) {
+            Node n = mkNum(this.cur.text);
+            this.Advance();
+            return n;
+        }
+        if (this.cur.kind == TokenKind.Str) {
+            Node n = mkStr(this.cur.text);
+            this.Advance();
+            return n;
+        }
+        if (this.AtPunct("{")) {
+            return this.ParseArrayInit(0);
+        }
+        if (this.cur.kind == TokenKind.Keyword && this.cur.text == "null") {
+            Node nn2 = mkNum("0");
+            nn2.tyHint = "null";
+            this.Advance();
+            return nn2;
+        }
+        if (this.cur.kind == TokenKind.Keyword &&
+            (this.cur.text == "true" || this.cur.text == "false")) {
+            Node bn = mkNum(this.cur.text == "true" ? "1" : "0");
+            bn.tyHint = "bool";
+            this.Advance();
+            return bn;
+        }
+        if (this.cur.kind == TokenKind.Keyword && this.cur.text == "new") {
+            this.Advance();
+            if (!(this.cur.kind == TokenKind.Ident || this.cur.kind == TokenKind.Keyword)) {
+                panic("parser: esperado classe apos new");
+            }
+            Node nn = new Node();
+            nn.kind = NK.New;
+            nn.text = this.cur.text;
+            this.Advance();
+            while (this.AtPunct(".")) {
+                this.Advance();
+                if (this.cur.kind == TokenKind.Ident || this.cur.kind == TokenKind.Keyword) {
+                    nn.text = nn.text + "." + this.cur.text;
+                    this.Advance();
+                }
+            }
+            nn.text = this.ResolveQName(nn.text);
+            // M23.1 2.3: generics em new â€” GUARDA args (ex: new Box<int>(42))
+            int newGenC = this.parseGenericArgs();
+            nn.genArgsC = newGenC;
+            for (int gi = 0; gi < newGenC; gi++) nn.genArgs[gi] = this._pgaArgs[gi];
+            if (this.AtPunct("(")) {
+                this.Advance();
+                if (!this.AtPunct(")")) {
+                    this.AddNamedCallArg(nn);
+                    while (this.AtPunct(",")) {
+                        this.Advance();
+                        this.AddNamedCallArg(nn);
+                    }
+                }
+                this.ExpectPunct(")");
+            }
+            return this.ParseIndexPostfix(nn);
+        }
+        if (this.cur.kind == TokenKind.Keyword && this.cur.text == "this") {
+            this.Advance();
+            return this.ParseIndexPostfix(mkVar("this"));
+        }
+        if (this.cur.kind == TokenKind.Keyword && this.cur.text == "match") {
+            return this.ParseMatch();
+        }
+        if (this.cur.kind == TokenKind.Keyword && this.cur.text == "spawn") {
+            return this.ParseTask();
+        }
+        if (this.cur.kind == TokenKind.Keyword && this.cur.text == "await") {
+            this.Advance();
+            Node op = this.ParseIndexPostfix(this.ParsePrimary());
+            Node aw = new Node();
+            aw.kind = NK.Await;
+            aw.left = op;
+            return aw;
+        }
+        if (this.cur.kind == TokenKind.Ident || this.cur.kind == TokenKind.Keyword) {
+            string name = this.cur.text;
+            this.Advance();
+            // M23.1 2.3: generics em call — GUARDA args (ex: Foo<int>(42))
+            int callGenC = this.parseGenericArgs();
+            if (this.AtPunct("(")) {
+                this.Advance();
+                Node call = mkCall(name);
+                call.genArgsC = callGenC;
+                for (int gi = 0; gi < callGenC; gi++) call.genArgs[gi] = this._pgaArgs[gi];
+                if (!this.AtPunct(")")) {
+                    this.AddNamedCallArg(call);
+                    while (this.AtPunct(",")) {
+                        this.Advance();
+                        this.AddNamedCallArg(call);
+                    }
+                }
+                this.ExpectPunct(")");
+                return this.ParseIndexPostfix(call);
+            }
+            return this.ParseIndexPostfix(mkVar(name));
+        }
+        if (this.AtPunct("(")) {
+            // v0.95: especulação de lambda `(...) =>`
+            int savePos = this.lx.pos;
+            Token saveCur = this.cur;
+            bool savePush = this.hasPush;
+            Token savePushed = this.pushed;
+            this.Advance(); // '('
+            int pDepth = 1;
+            bool isLam = false;
+            while (!this.AtEof()) {
+                if (this.AtPunct("(")) { pDepth = pDepth + 1; this.Advance(); continue; }
+                if (this.AtPunct(")")) {
+                    pDepth = pDepth - 1;
+                    this.Advance();
+                    if (pDepth == 0) {
+                        if (this.AtPunct("=>")) isLam = true;
+                        break;
+                    }
+                    continue;
+                }
+                if (this.AtPunct("{") || this.AtPunct(";")) break;
+                this.Advance();
+            }
+            this.lx.pos = savePos;
+            this.cur = saveCur;
+            this.hasPush = savePush;
+            this.pushed = savePushed;
+
+            if (isLam) {
+                return this.parseLambdaExpr();
+            }
+
+            this.Advance();
+            // M15.4: cast `(type)expr` — tipo-keyword sempre; Ident quando
+            // algo unary vem depois do ')'
+            bool isCastTy = false;
+            if (this.cur.kind == TokenKind.Keyword && this.IsTypeKw(this.cur.text)) {
+                isCastTy = true;
+            } else if (this.cur.kind == TokenKind.Ident) {
+                // Ident + ')' pode ser cast-classe ou paren de var: decide
+                // pelo token seguinte (precisa empurrar 1)
+                Token tyTok2 = this.cur;
+                this.Advance();
+                if (this.AtPunct(")")) {
+                    this.Advance();
+                    Node inner = this.ParseUnary();
+                    return this.ParseIndexPostfix(inner);
+                }
+                this.UndoAdvance(tyTok2, this.cur);
+            }
+            if (isCastTy) {
+                string castTy = this.cur.text;
+                this.Advance(); // tipo
+                this.ExpectPunct(")");
+                Node cv = this.ParseUnary();
+                Node cn = new Node();
+                cn.kind = NK.Cast;
+                cn.text = castTy;
+                cn.left = cv;
+                return this.ParseIndexPostfix(cn);
+            }
+            Node e = this.ParseExpr();
+            if (this.AtPunct(",")) {
+                Node tup = new Node();
+                tup.kind = NK.ArrayInit;
+                tup.text = "tuple";
+                callAddArg(tup, e);
+                while (this.AtPunct(",")) {
+                    this.Advance();
+                    callAddArg(tup, this.ParseExpr());
+                }
+                this.ExpectPunct(")");
+                return this.ParseIndexPostfix(tup);
+            }
+            this.ExpectPunct(")");
+            return this.ParseIndexPostfix(e);
+        }
+        panic("parser: token inesperado '" + this.cur.text + "'");
+        return mkVar("?");
+    }
+
+    Node parseLambdaExpr() {
+        this.ExpectPunct("(");
+        Pm params = null;
+        Pm lastP = null;
+        if (!this.AtPunct(")")) {
+            while (!this.AtEof()) {
+                string pty = "";
+                string pnm = "";
+                bool hasType = false;
+                if (this.cur.kind == TokenKind.Keyword && this.IsTypeKw(this.cur.text)) {
+                    hasType = true;
+                } else if (this.cur.kind == TokenKind.Ident) {
+                    Token t1 = this.cur;
+                    this.Advance();
+                    if (this.cur.kind == TokenKind.Ident || this.AtPunct("<")) {
+                        hasType = true;
+                    }
+                    this.UndoAdvance(t1, this.cur);
+                }
+
+                if (hasType) {
+                    pty = this.cur.text;
+                    this.Advance();
+                    int pgenC = this.parseGenericArgs();
+                    if (pgenC > 0) {
+                        pty = pty + "<" + this._pgaArgs[0];
+                        for (int gi = 1; gi < pgenC; gi++) pty = pty + ", " + this._pgaArgs[gi];
+                        pty = pty + ">";
+                    }
+                }
+                if (!(this.cur.kind == TokenKind.Ident || this.cur.kind == TokenKind.Keyword)) {
+                    panic("parser: esperado nome de parametro da lambda");
+                }
+                pnm = this.cur.text;
+                this.Advance();
+
+                Pm p = mkParam(pty, pnm);
+                if (lastP == null) {
+                    params = p;
+                    lastP = p;
+                } else {
+                    lastP.next = p;
+                    lastP = p;
+                }
+                if (this.AtPunct(",")) {
+                    this.Advance();
+                    continue;
+                }
+                break;
+            }
+        }
+        this.ExpectPunct(")");
+        this.ExpectPunct("=>");
+        Stmt sbody = null;
+        if (this.AtPunct("{")) {
+            sbody = this.ParseBlock();
+        } else {
+            Node bodyExpr = this.ParseExpr();
+            Stmt ret = new Stmt();
+            ret.kind = SK.Return;
+            ret.expr = bodyExpr;
+            sbody = new Stmt();
+            sbody.kind = SK.Block;
+            sbody.body = ret;
+        }
+        Node lam = mkLambda(params, sbody);
+        return this.ParseIndexPostfix(lam);
+    }
+
+    // postfix de indexação: consome sequência de [expr] / ?[expr] sobre o primário
+    Node ParseIndexPostfix(Node bse) {
+        for (;;) {
+            if (this.AtPunct("?[")) {
+                this.Advance();
+                Node ix = new Node();
+                ix.kind = NK.OptIndex;
+                ix.left = bse;
+                ix.right = this.ParseExpr();
+                bse = ix;
+                this.ExpectPunct("]");
+                continue;
+            }
+            if (this.AtPunct("[")) {
+                this.Advance();
+                Node ix = new Node();
+                ix.kind = NK.Index;
+                ix.left = bse;
+                ix.right = this.ParseExpr();
+                bse = ix;
+                this.ExpectPunct("]");
+                continue;
+            }
+            if (this.AtPunct("++") || this.AtPunct("--")) {
+                string uop2 = this.cur.text;
+                this.Advance();
+                Node un = new Node();
+                un.kind = NK.Un;
+                un.op = uop2;
+                un.left = bse;
+                bse = un;
+                continue;
+            }
+            if (this.AtPunct(".") || this.AtPunct("?.")) {
+                bool isOpt = this.AtPunct("?.");
+                this.Advance();
+                if (!(this.cur.kind == TokenKind.Ident || this.cur.kind == TokenKind.Keyword)) {
+                    panic("parser: esperado nome apos '.'");
+                }
+                string nm = this.cur.text;
+                this.Advance();
+                bse = this.ResolveBase(bse);
+                if (bse == null) {
+                    if (this.AtPunct("(")) {
+                        this.Advance();
+                        Node call = mkCall(nm);
+                        call.recv = null;
+                        if (isOpt) call.op = "?.";
+                        if (!this.AtPunct(")")) {
+                            this.AddNamedCallArg(call);
+                            while (this.AtPunct(",")) {
+                                this.Advance();
+                                this.AddNamedCallArg(call);
+                            }
+                        }
+                        this.ExpectPunct(")");
+                        bse = call;
+                        continue;
+                    }
+                    bse = mkVar(nm);
+                    continue;
+                }
+                if (this.AtPunct("(")) {
+                    this.Advance();
+                    Node call = mkCall(nm);
+                    call.recv = bse;
+                    if (isOpt) call.op = "?.";
+                    if (!this.AtPunct(")")) {
+                        this.AddNamedCallArg(call);
+                        while (this.AtPunct(",")) {
+                            this.Advance();
+                            this.AddNamedCallArg(call);
+                        }
+                    }
+                    this.ExpectPunct(")");
+                    bse = call;
+                    continue;
+                }
+                Node mb = new Node();
+                mb.kind = NK.Member;
+                mb.left = bse;
+                mb.text = nm;
+                if (isOpt) mb.op = "?.";
+                bse = mb;
+                continue;
+            }
+            if (this.AtPunct("(")) {
+                this.Advance();
+                Node icall = mkCall("");
+                icall.left = bse;
+                icall.isIndirectCall = true;
+                if (!this.AtPunct(")")) {
+                    this.AddNamedCallArg(icall);
+                    while (this.AtPunct(",")) {
+                        this.Advance();
+                        this.AddNamedCallArg(icall);
+                    }
+                }
+                this.ExpectPunct(")");
+                bse = icall;
+                continue;
+            }
+            break;
+        }
+        return bse;
+    }
+
+    // ------------------------------------------------------------------
+    // M14.4c: statements
+    // ------------------------------------------------------------------
+    // stmt := vardecl | assign | if | while | return | exprstmt | block
+    public Stmt ParseStmt() {
+        this.SkipAttributes();
+        bool locAtomic = false;
+        bool locTls = false;
+        while (!this.hasPush && !this.AtEof() &&
+               (this.cur.text == "const" || this.cur.text == "readonly" ||
+                this.cur.text == "volatile" || this.cur.text == "static" ||
+                this.cur.text == "inline" || this.cur.text == "atomic" ||
+                this.cur.text == "threadlocal" || this.cur.text == "heap" ||
+                this.cur.text == "arena" || this.cur.text == "shared" ||
+                this.cur.text == "stack" || this.cur.text == "pool")) {
+            if (this.cur.text == "atomic") locAtomic = true;
+            if (this.cur.text == "threadlocal") locTls = true;
+            int savePos = this.lx.pos;
+            Token saveCur = this.cur;
+            bool savePush = this.hasPush;
+            Token savePushed = this.pushed;
+            this.Advance();
+            bool isModifier = (this.cur.kind == TokenKind.Keyword && this.IsTypeKw(this.cur.text)) ||
+                              this.cur.kind == TokenKind.Ident;
+            this.lx.pos = savePos;
+            this.cur = saveCur;
+            this.hasPush = savePush;
+            this.pushed = savePushed;
+            if (isModifier) {
+                this.Advance();
+            } else {
+                break;
+            }
+        }
+        if (this.AtPunct("{")) return this.ParseBlock();
+        if (this.cur.kind == TokenKind.Keyword) {
+            string kw = this.cur.text;
+            // tipos: declaraÃƒÆ’Ã‚Â§ÃƒÆ’Ã‚Â£o `int x = ...` / `var y;`
+            if (this.IsTypeKw(kw)) {
+                Stmt vd = this.ParseVarDecl(kw);
+                vd.isAtomic = locAtomic;
+                return vd;
+            }
+            if (kw == "foreach") return this.ParseForeach();
+            if (kw == "if") return this.ParseIf();
+            if (kw == "while") return this.ParseWhile();
+            if (kw == "do") return this.ParseDoWhile();
+            if (kw == "switch") return this.ParseSwitch();
+            if (kw == "parallel") return this.ParseParallel();
+            if (kw == "lock") return this.ParseLock();
+            if (kw == "for") return this.ParseFor();
+            if (kw == "try") return this.ParseTry();
+            if (kw == "throw") return this.ParseThrow();
+            if (kw == "match") {
+                Node m = this.ParseMatch();
+                Stmt e = new Stmt();
+                e.kind = SK.ExprStmt;
+                e.expr = m;
+                return e;
+            }
+            if (kw == "spawn") {
+                Node sp = this.ParseTask();
+                Stmt e = new Stmt();
+                e.kind = SK.ExprStmt;
+                e.expr = sp;
+                return e;
+            }
+            if (kw == "break") {
+                this.Advance();
+                this.ExpectPunct(";");
+                Stmt b = new Stmt();
+                b.kind = SK.Break;
+                return b;
+            }
+            if (kw == "continue") {
+                this.Advance();
+                this.ExpectPunct(";");
+                Stmt c = new Stmt();
+                c.kind = SK.Continue;
+                return c;
+            }
+            if (kw == "return") return this.ParseReturn();
+        }
+        // M15.3: `this.campo = v`
+        if (this.cur.kind == TokenKind.Keyword && this.cur.text == "this") {
+            this.Advance();
+            Node chain2 = this.ParseIndexPostfix(mkVar("this"));
+            if (!(this.cur.kind == TokenKind.Punct &&
+                  (this.cur.text == "=" || this.cur.text == "+=" ||
+                   this.cur.text == "-=" || this.cur.text == "*=" ||
+                   this.cur.text == "/="))) {
+                // M15.3: chamada/leitura `this.X(...)` -> ExprStmt
+                Stmt esT = new Stmt();
+                esT.kind = SK.ExprStmt;
+                esT.expr = chain2;
+                this.ExpectPunct(";");
+                return esT;
+            }
+            string top = this.cur.text;
+            this.Advance();
+            Stmt ts = new Stmt();
+            ts.kind = SK.Assign;
+            ts.op = top;
+            ts.targetMember = chain2;
+            ts.expr = this.ParseExpr();
+            this.ExpectPunct(";");
+            return ts;
+        }
+        if (this.cur.kind == TokenKind.Ident) {
+            string name = this.cur.text;
+            Token idTok = this.cur;
+            this.Advance(); // cur = token seguinte
+            // M17 Fase 2.1: generics <int> entre tipo e nome (ex: C<int> c)
+            int idGenC = this.parseGenericArgs();
+            // M15.2.4: declaracao com tipo CLASSE: `Ponto p = ...`
+            if (this.cur.kind == TokenKind.Ident) {
+                Stmt td = new Stmt();
+                td.kind = SK.VarDecl;
+                td.name = this.ResolveQName(idTok.text);
+                td.text = this.cur.text;
+                td.genArgsC = idGenC;
+                for (int gi = 0; gi < idGenC; gi++) td.genArgs[gi] = this._pgaArgs[gi];
+                this.Advance();
+                if (this.AtPunct("=")) {
+                    this.Advance();
+                    td.expr = this.ParseExpr();
+                } else if (this.AtPunct("(")) {
+                    this.Advance();
+                    Node nw = new Node();
+                    nw.kind = NK.New;
+                    nw.text = this.ResolveQName(idTok.text);
+                    if (!this.AtPunct(")")) {
+                        this.AddNamedCallArg(nw);
+                        while (this.AtPunct(",")) {
+                            this.Advance();
+                            this.AddNamedCallArg(nw);
+                        }
+                    }
+                    this.ExpectPunct(")");
+                    td.expr = nw;
+                } else {
+                    td.expr = null;
+                }
+                td.isAtomic = locAtomic;
+                this.ExpectPunct(";");
+                return td;
+            }
+            // M15.2.3: elemento buf[i] = v (antes do check de assign simples)
+            if (this.cur.kind == TokenKind.Punct && this.cur.text == "[") {
+                // Distingue declaracao de array fixo `Node[8] args;` de indexacao `buf[i] = ...;`
+                int savePos = this.lx.pos;
+                Token saveCur = this.cur;
+                bool savePush = this.hasPush;
+                Token savePushed = this.pushed;
+
+                bool isArrayDecl = false;
+                this.Advance();
+                if (this.cur.kind == TokenKind.Number) {
+                    this.Advance();
+                    if (this.AtPunct("]")) {
+                        this.Advance();
+                        while (this.AtPunct("[")) {
+                            this.Advance();
+                            if (this.cur.kind == TokenKind.Number) this.Advance();
+                            if (this.AtPunct("]")) this.Advance();
+                        }
+                        if (this.cur.kind == TokenKind.Ident || this.cur.kind == TokenKind.Keyword) {
+                            isArrayDecl = true;
+                        }
+                    }
+                }
+
+                this.lx.pos = savePos;
+                this.cur = saveCur;
+                this.hasPush = savePush;
+                this.pushed = savePushed;
+
+                if (isArrayDecl) {
+                    this.UndoAdvance(idTok, this.cur);
+                    Stmt vd = this.ParseVarDecl(idTok.text);
+                    vd.isAtomic = locAtomic;
+                    return vd;
+                }
+
+                this.Advance();
+                Node idxN = this.ParseExpr();
+                this.ExpectPunct("]");
+                if (this.AtPunct(".") || this.AtPunct("?.")) {
+                    Node chain = new Node();
+                    chain.kind = NK.Index;
+                    chain.left = mkVar(idTok.text);
+                    chain.right = idxN;
+                    chain = this.ParseIndexPostfix(chain);
+                    if (this.AtPunct(";")) {
+                        Stmt esC = new Stmt();
+                        esC.kind = SK.ExprStmt;
+                        esC.expr = chain;
+                        this.Advance();
+                        return esC;
+                    }
+                    if (this.cur.kind == TokenKind.Punct &&
+                        (this.cur.text == "=" || this.cur.text == "+=" ||
+                         this.cur.text == "-=" || this.cur.text == "*=" ||
+                         this.cur.text == "/=")) {
+                        string mop = this.cur.text;
+                        this.Advance();
+                        Stmt ms = new Stmt();
+                        ms.kind = SK.Assign;
+                        ms.op = mop;
+                        ms.targetMember = chain;
+                        ms.expr = this.ParseExpr();
+                        this.ExpectPunct(";");
+                        return ms;
+                    }
+                }
+                if (this.cur.kind == TokenKind.Punct && (this.cur.text == "++" || this.cur.text == "--")) {
+                    string incOp = (this.cur.text == "++") ? "+=" : "-=";
+                    this.Advance();
+                    Stmt esInc = new Stmt();
+                    esInc.kind = SK.Assign;
+                    esInc.name = idTok.text;
+                    esInc.op = incOp;
+                    esInc.targetIdx = idxN;
+                    esInc.expr = mkNum("1");
+                    this.ExpectPunct(";");
+                    return esInc;
+                }
+                if (!(this.cur.kind == TokenKind.Punct &&
+                      (this.cur.text == "=" || this.cur.text == "+=" ||
+                       this.cur.text == "-=" || this.cur.text == "*=" ||
+                       this.cur.text == "/="))) {
+                    panic("parser: esperado atribuição a elemento em '" + idTok.text + "' cur='" + this.cur.text + "' pos=" + this.lx.pos);
+                }
+                string eop = this.cur.text;
+                this.Advance();
+                Stmt es2 = new Stmt();
+                es2.kind = SK.Assign;
+                es2.name = idTok.text;
+                es2.op = eop;
+                es2.targetIdx = idxN;
+                es2.expr = this.ParseExpr();
+                this.ExpectPunct(";");
+                return es2;
+            }
+            // M15.2.4: campo p.f = v ou tipo qualificado Mod.Tipo v
+            if (this.cur.kind == TokenKind.Punct && (this.cur.text == "." || this.cur.text == "?.")) {
+                Node chain = mkVar(idTok.text);
+                chain = this.ParseIndexPostfix(chain);
+                // M15-fix4: chamada/expressao como statement: obj.metodo(...);
+                if (this.AtPunct(";")) {
+                    Stmt esC = new Stmt();
+                    esC.kind = SK.ExprStmt;
+                    esC.expr = chain;
+                    this.Advance();
+                    return esC;
+                }
+                // Declaracao com tipo qualificado: Mod.Tipo varName [= expr];
+                if (this.cur.kind == TokenKind.Ident) {
+                    string varNm = this.cur.text;
+                    this.Advance();
+                    Stmt qd = new Stmt();
+                    qd.kind = SK.VarDecl;
+                    qd.name = (chain.left != null) ? (chain.left.text + "." + chain.text) : chain.text;
+                    qd.text = varNm;
+                    if (this.AtPunct("=")) {
+                        this.Advance();
+                        qd.expr = this.ParseExpr();
+                    } else {
+                        qd.expr = null;
+                    }
+                    this.ExpectPunct(";");
+                    return qd;
+                }
+                if (!(this.cur.kind == TokenKind.Punct &&
+                      (this.cur.text == "=" || this.cur.text == "+=" ||
+                       this.cur.text == "-=" || this.cur.text == "*=" ||
+                       this.cur.text == "/="))) {
+                    panic("parser: esperado atribuicao a campo, cur=" + this.cur.text);
+                }
+                string mop = this.cur.text;
+                this.Advance();
+                Stmt ms = new Stmt();
+                ms.kind = SK.Assign;
+                ms.op = mop;
+                ms.targetMember = chain;
+                ms.expr = this.ParseExpr();
+                this.ExpectPunct(";");
+                return ms;
+            }
+            // ident seguido de atribuiÃƒÂ§ÃƒÂ£o (simples ou composta)?
+            if (this.cur.kind == TokenKind.Punct && this.cur.text != "(" &&
+                this.cur.text != ")" && this.cur.text != "," &&
+                (this.cur.text == "=" || this.cur.text == "+=" ||
+                 this.cur.text == "-=" || this.cur.text == "*=" ||
+                 this.cur.text == "/=")) {
+                string op = this.cur.text;
+                this.Advance();
+                Stmt s = new Stmt();
+                s.kind = SK.Assign;
+                s.name = name;
+                s.op = op;
+                s.expr = this.ParseExpr();
+                this.ExpectPunct(";");
+                return s;
+            }
+            // nÃƒÂ£o era atribuiÃƒÂ§ÃƒÂ£o: desfaz (cur=ident; prÃƒÂ³ximo fica guardado)
+            this.UndoAdvance(idTok, this.cur);
+        }
+        Stmt es = new Stmt();
+        es.kind = SK.ExprStmt;
+        es.expr = this.ParseExpr();
+        this.ExpectPunct(";");
+        return es;
+    }
+
+    bool IsTypeKw(string kw) {
+        return kw == "int" || kw == "uint" || kw == "float" || kw == "double" ||
+               kw == "bool" || kw == "char" || kw == "string" || kw == "var" ||
+               kw == "u8" || kw == "u16" || kw == "u32" || kw == "u64" ||
+               kw == "list" || kw == "map" || kw == "Option" || kw == "option" ||
+               kw == "Result" || kw == "result" || kw == "channel" || kw == "task" ||
+               kw == "actor" || kw == "thread" || kw == "mutex" || kw == "semaphore" ||
+               kw == "barrier" || kw == "event" || kw == "func";
+    }
+
+    Stmt ParseVarDecl(string typeKw) {
+        typeKw = this.ResolveQName(typeKw);
+        this.Advance(); // consome o tipo
+        if (typeKw == "var" && this.AtPunct("(")) {
+            this.Advance();
+            string names = "";
+            while (!this.AtPunct(")") && !this.AtEof()) {
+                if (names != "") names = names + ",";
+                names = names + this.cur.text;
+                this.Advance();
+                if (this.AtPunct(",")) this.Advance();
+            }
+            this.ExpectPunct(")");
+            this.ExpectPunct("=");
+            Node initExpr = this.ParseExpr();
+            this.ExpectPunct(";");
+            Stmt td = new Stmt();
+            td.kind = SK.TupleDestruct;
+            td.text = names;
+            td.expr = initExpr;
+            return td;
+        }
+        // M23.1 2.3: consome generics <T, U> (ex: int<64>, list<int>) e GUARDA
+        int localGenC = this.parseGenericArgs();
+        if (this.AtPunct("[")) {
+            string dims = "";
+            int total = 1;
+            for (;;) {
+                if (!this.AtPunct("[")) break;
+                this.Advance();
+                if (this.cur.kind != TokenKind.Number) {
+                    panic("parser: esperado tamanho do array local");
+                }
+                string szTx = this.cur.text;
+                var sz = parse_int(szTx);
+                this.Advance();
+                this.ExpectPunct("]");
+                dims = dims + "[" + szTx + "]";
+                total = total * (int)sz;
+            }
+            Stmt sa = new Stmt();
+            sa.kind = SK.VarDecl;
+            sa.isArray = true;
+            sa.name = typeKw;
+            sa.fullTy = typeKw + dims;
+            sa.genArgsC = localGenC;
+            for (int gi = 0; gi < localGenC; gi++) sa.genArgs[gi] = this._pgaArgs[gi];
+            if (this.cur.kind != TokenKind.Ident && this.cur.kind != TokenKind.Keyword) {
+                panic("parser: esperado nome do array local");
+            }
+            sa.text = this.cur.text;
+            this.Advance();
+            if (this.AtPunct("=")) {
+                this.Advance();
+                sa.expr = this.ParseExpr();
+            }
+            this.ExpectPunct(";");
+            sa.arrSize = total;
+            return sa;
+        }
+        Stmt s = new Stmt();
+        s.kind = SK.VarDecl;
+        s.name = typeKw;
+        s.genArgsC = localGenC;
+        for (int gi = 0; gi < localGenC; gi++) s.genArgs[gi] = this._pgaArgs[gi];
+        if (localGenC > 0) {
+            string gcsv = "";
+            for (int gi = 0; gi < localGenC; gi++) {
+                if (gi > 0) gcsv = gcsv + ", ";
+                gcsv = gcsv + this._pgaArgs[gi];
+            }
+            s.fullTy = typeKw + "<" + gcsv + ">";
+            if (typeKw == "func") s.name = s.fullTy;
+        }
+        if (this.cur.kind != TokenKind.Ident && this.cur.kind != TokenKind.Keyword) {
+            panic("parser: esperado nome na declaração");
+        }
+        s.text = this.cur.text; // nome da variável
+        this.Advance();
+        if (this.AtPunct("=")) {
+            this.Advance();
+            s.expr = this.ParseExpr();
+        } else if (this.AtPunct("(")) {
+            this.Advance();
+            Node nw = new Node();
+            nw.kind = NK.New;
+            nw.text = typeKw;
+            if (!this.AtPunct(")")) {
+                this.AddNamedCallArg(nw);
+                while (this.AtPunct(",")) {
+                    this.Advance();
+                    this.AddNamedCallArg(nw);
+                }
+            }
+            this.ExpectPunct(")");
+            s.expr = nw;
+        }
+        this.ExpectPunct(";");
+        return s;
+    }
+
+    Stmt ParseIf() {
+        this.Advance(); // 'if'
+        this.ExpectPunct("(");
+        Stmt s = new Stmt();
+        s.kind = SK.If;
+        s.expr = this.ParseExpr();
+        this.ExpectPunct(")");
+        if (this.AtPunct("{")) {
+            s.body = this.ParseBlock();
+        } else {
+            Stmt one = new Stmt();
+            one.kind = SK.Block;
+            one.body = this.ParseStmt();
+            s.body = one;
+        }
+        if (this.cur.kind == TokenKind.Keyword && this.cur.text == "else") {
+            this.Advance();
+            if (this.AtPunct("{")) {
+                s.elseBody = this.ParseBlock();
+            } else {
+                Stmt one2 = new Stmt();
+                one2.kind = SK.Block;
+                one2.body = this.ParseStmt();
+                s.elseBody = one2;
+            }
+        }
+        return s;
+    }
+
+    Stmt ParseWhile() {
+        this.Advance(); // 'while'
+        this.ExpectPunct("(");
+        Stmt s = new Stmt();
+        s.kind = SK.While;
+        s.expr = this.ParseExpr();
+        this.ExpectPunct(")");
+        if (this.AtPunct("{")) {
+            s.body = this.ParseBlock();
+        } else {
+            Stmt one = new Stmt();
+            one.kind = SK.Block;
+            one.body = this.ParseStmt();
+            s.body = one;
+        }
+        return s;
+    }
+
+    Stmt ParseTry() {
+        this.Advance(); // 'try'
+        Stmt s = new Stmt();
+        s.kind = SK.Try;
+        if (this.AtPunct("{")) {
+            s.body = this.ParseBlock();
+        } else {
+            Stmt one = new Stmt();
+            one.kind = SK.Block;
+            one.body = this.ParseStmt();
+            s.body = one;
+        }
+        if (this.cur.kind == TokenKind.Keyword && this.cur.text == "catch") {
+            this.Advance(); // 'catch'
+            this.ExpectPunct("(");
+            string cty = this.cur.text;
+            this.Advance();
+            while (this.AtPunct("[")) {
+                this.Advance();
+                while (!this.AtPunct("]") && !this.AtEof()) this.Advance();
+                this.ExpectPunct("]");
+                cty = cty + "[]";
+            }
+            string cvar = this.cur.text;
+            this.Advance();
+            this.ExpectPunct(")");
+            s.catchType = cty;
+            s.catchVar = cvar;
+            if (this.AtPunct("{")) {
+                s.elseBody = this.ParseBlock();
+            } else {
+                Stmt one2 = new Stmt();
+                one2.kind = SK.Block;
+                one2.body = this.ParseStmt();
+                s.elseBody = one2;
+            }
+        }
+        return s;
+    }
+
+    Stmt ParseThrow() {
+        this.Advance(); // 'throw'
+        Stmt s = new Stmt();
+        s.kind = SK.Throw;
+        s.expr = this.ParseExpr();
+        this.ExpectPunct(";");
+        return s;
+    }
+
+    Node ParseMatchPattern() {
+        if (this.AtPunct("[")) {
+            this.Advance();
+            Node subh = null;
+            Node subt = null;
+            string rest = "";
+            if (!this.AtPunct("]")) {
+                for (;;) {
+                    if (this.AtPunct("..")) {
+                        this.Advance();
+                        if (!(this.cur.kind == TokenKind.Ident || this.cur.kind == TokenKind.Keyword)) {
+                            panic("parser: esperado nome do resto '..x'");
+                        }
+                        rest = this.cur.text;
+                        this.Advance();
+                        break;
+                    }
+                    Node sp = this.ParseMatchPattern();
+                    sp.next = null;
+                    if (subt == null) subh = sp;
+                    else subt.next = sp;
+                    subt = sp;
+                    if (this.AtPunct(",")) {
+                        this.Advance();
+                        if (this.AtPunct("]")) break;
+                        continue;
+                    }
+                    break;
+                }
+            }
+            this.ExpectPunct("]");
+            Node ln = new Node();
+            ln.kind = NK.MatchList;
+            ln.text = rest;
+            ln.arg = subh;
+            return ln;
+        }
+        if ((this.cur.kind == TokenKind.Ident || this.cur.kind == TokenKind.Keyword) && this.cur.text == "_") {
+            this.Advance();
+            Node w = new Node();
+            w.kind = NK.MatchWild;
+            return w;
+        }
+        bool neg = false;
+        if (this.AtPunct("-")) {
+            this.Advance();
+            neg = true;
+        }
+        if (this.cur.kind == TokenKind.Number) {
+            string lit = this.cur.text;
+            this.Advance();
+            if (neg) lit = "-" + lit;
+            Node lo = mkNum(lit);
+            if (this.AtPunct("..")) {
+                this.Advance();
+                bool neg2 = false;
+                if (this.AtPunct("-")) { this.Advance(); neg2 = true; }
+                if (this.cur.kind != TokenKind.Number) panic("parser: esperado numero no fim da faixa");
+                string lit2 = this.cur.text;
+                this.Advance();
+                if (neg2) lit2 = "-" + lit2;
+                Node hi = mkNum(lit2);
+                Node rg = new Node();
+                rg.kind = NK.MatchRange;
+                rg.left = lo;
+                rg.right = hi;
+                return rg;
+            }
+            return lo;
+        }
+        if (neg) panic("parser: padrao invalido apos '-'");
+        if (this.cur.kind == TokenKind.Str) {
+            Node s = mkStr(this.cur.text);
+            this.Advance();
+            return s;
+        }
+        if (this.cur.kind == TokenKind.Ident || this.cur.kind == TokenKind.Keyword) {
+            string path = this.cur.text;
+            this.Advance();
+            if (this.AtPunct("@")) {
+                this.Advance();
+                Node inner = this.ParseMatchPattern();
+                Node at = new Node();
+                at.kind = NK.MatchAt;
+                at.text = path;
+                at.left = inner;
+                return at;
+            }
+            bool dotted = false;
+            while (this.AtPunct(".")) {
+                this.Advance();
+                if (!(this.cur.kind == TokenKind.Ident || this.cur.kind == TokenKind.Keyword)) {
+                    panic("parser: esperado nome apos '.' no padrao");
+                }
+                path = path + "." + this.cur.text;
+                dotted = true;
+                this.Advance();
+            }
+            if (this.AtPunct("(")) {
+                int svPos = this.lx.pos;
+                Token svCur = this.cur;
+                bool svPush = this.hasPush;
+                Token svPushed = this.pushed;
+                this.Advance();
+                bool isStruct = false;
+                if ((this.cur.kind == TokenKind.Ident || this.cur.kind == TokenKind.Keyword)) {
+                    string nm0 = this.cur.text;
+                    this.Advance();
+                    if (this.AtPunct(":")) isStruct = true;
+                }
+                this.lx.pos = svPos;
+                this.cur = svCur;
+                this.hasPush = svPush;
+                this.pushed = svPushed;
+                this.Advance();
+                if (isStruct) {
+                    Node subh = null;
+                    Node subt = null;
+                    if (!this.AtPunct(")")) {
+                        for (;;) {
+                            if (!(this.cur.kind == TokenKind.Ident || this.cur.kind == TokenKind.Keyword)) {
+                                panic("parser: esperado nome do campo");
+                            }
+                            string fnm = this.cur.text;
+                            this.Advance();
+                            this.ExpectPunct(":");
+                            Node fsp = this.ParseMatchPattern();
+                            Node fld = new Node();
+                            fld.kind = NK.MatchStructField;
+                            fld.text = fnm;
+                            fld.left = fsp;
+                            fld.next = null;
+                            if (subt == null) subh = fld;
+                            else subt.next = fld;
+                            subt = fld;
+                            if (this.AtPunct(",")) { this.Advance(); continue; }
+                            break;
+                        }
+                    }
+                    this.ExpectPunct(")");
+                    Node sn = new Node();
+                    sn.kind = NK.MatchStruct;
+                    sn.text = path;
+                    sn.arg = subh;
+                    return sn;
+                }
+                Node subh = null;
+                Node subt = null;
+                if (!this.AtPunct(")")) {
+                    for (;;) {
+                        Node sp = this.ParseMatchPattern();
+                        sp.next = null;
+                        if (subt == null) subh = sp;
+                        else subt.next = sp;
+                        subt = sp;
+                        if (this.AtPunct(",")) { this.Advance(); continue; }
+                        break;
+                    }
+                }
+                this.ExpectPunct(")");
+                Node vn = new Node();
+                vn.kind = NK.MatchVariant;
+                vn.text = path;
+                vn.arg = subh;
+                return vn;
+            }
+            if (!dotted) {
+                if (path == "Some" || path == "None" || path == "Ok" || path == "Err") {
+                    Node cn = new Node();
+                    cn.kind = NK.MatchConst;
+                    cn.text = path;
+                    return cn;
+                }
+                Node bn = new Node();
+                bn.kind = NK.MatchBind;
+                bn.text = path;
+                return bn;
+            }
+            Node cn = new Node();
+            cn.kind = NK.MatchConst;
+            cn.text = path;
+            return cn;
+        }
+        panic("parser: padrao de match nao suportado");
+        return null;
+    }
+
+    Node ParseMatchArm() {
+        Node pat = this.ParseMatchPattern();
+        Node guard = null;
+        if (this.cur.kind == TokenKind.Keyword && this.cur.text == "when") {
+            this.Advance();
+            guard = this.ParseExpr();
+        }
+        this.ExpectPunct("=>");
+        Node yield = null;
+        Stmt body = null;
+        if (this.AtPunct("{")) {
+            body = this.ParseBlock();
+        } else {
+            yield = this.ParseExpr();
+            if (this.AtPunct(",") || this.AtPunct(";")) this.Advance();
+        }
+        Node arm = new Node();
+        arm.kind = NK.MatchArm;
+        arm.left = pat;
+        arm.right = guard;
+        arm.arg = yield;
+        if (body != null) arm.lamBody = body;
+        return arm;
+    }
+
+    Node ParseMatch() {
+        this.Advance(); // 'match'
+        this.ExpectPunct("(");
+        Node subj = this.ParseExpr();
+        this.ExpectPunct(")");
+        this.ExpectPunct("{");
+        Node ahead = null;
+        Node atail = null;
+        while (!this.AtPunct("}") && !this.AtEof()) {
+            Node arm = this.ParseMatchArm();
+            arm.next = null;
+            if (atail == null) ahead = arm;
+            else atail.next = arm;
+            atail = arm;
+            if (this.AtPunct(",") || this.AtPunct(";")) this.Advance();
+        }
+        this.ExpectPunct("}");
+        Node m = new Node();
+        m.kind = NK.Match;
+        m.left = subj;
+        m.arg = ahead;
+        return m;
+    }
+
+    Node ParseTask() {
+        this.Advance(); // 'spawn'
+        if (this.cur.text == "task") {
+            this.Advance();
+        }
+        Stmt body = this.ParseBlock();
+        Node t = new Node();
+        t.kind = NK.Task;
+        t.lamBody = body;
+        return t;
+    }
+
+    Stmt ParseForeach() {
+        this.Advance(); // consome 'foreach'
+        this.ExpectPunct("(");
+        string itemType = "var";
+        if (this.cur.kind == TokenKind.Keyword && this.cur.text == "var") {
+            this.Advance();
+        } else if (this.cur.kind == TokenKind.Keyword && this.IsTypeKw(this.cur.text)) {
+            itemType = this.cur.text;
+            this.Advance();
+        } else if (this.cur.kind == TokenKind.Ident) {
+            int savePos = this.lx.pos;
+            Token saveCur = this.cur;
+            bool savePush = this.hasPush;
+            Token savePushed = this.pushed;
+            this.Advance();
+            bool nextIsIn = (this.cur.kind == TokenKind.Keyword || this.cur.kind == TokenKind.Ident) && this.cur.text == "in";
+            this.lx.pos = savePos;
+            this.cur = saveCur;
+            this.hasPush = savePush;
+            this.pushed = savePushed;
+            if (!nextIsIn) {
+                itemType = this.cur.text;
+                this.Advance();
+            }
+        }
+        if (!(this.cur.kind == TokenKind.Ident || this.cur.kind == TokenKind.Keyword)) {
+            panic("parser: esperado nome da variavel no foreach");
+        }
+        string itemName = this.cur.text;
+        this.Advance();
+        if (this.cur.text != "in") {
+            panic("parser: esperado 'in' no foreach");
+        }
+        this.Advance(); // 'in'
+        Node coll = this.ParseExpr();
+        this.ExpectPunct(")");
+        if (this.cur.text == "batch") {
+            this.Advance();
+            this.ExpectPunct(":");
+            this.ParseExpr();
+        }
+        Stmt body = null;
+        if (this.AtPunct("{")) {
+            body = this.ParseBlock();
+        } else {
+            Stmt one = new Stmt();
+            one.kind = SK.Block;
+            one.body = this.ParseStmt();
+            body = one;
+        }
+
+        this.feCounter = this.feCounter + 1;
+        string idxVar = "_fei_" + this.feCounter;
+
+        Stmt initS = new Stmt();
+        initS.kind = SK.VarDecl;
+        initS.name = "int";
+        initS.text = idxVar;
+        initS.expr = mkNum("0");
+
+        Node condE = mkBin("<", mkVar(idxVar), mkMember(coll, "Length"));
+
+        Stmt stepS = new Stmt();
+        stepS.kind = SK.Assign;
+        stepS.name = idxVar;
+        stepS.op = "+=";
+        stepS.expr = mkNum("1");
+
+        Stmt itemDecl = new Stmt();
+        itemDecl.kind = SK.VarDecl;
+        itemDecl.name = itemType;
+        itemDecl.text = itemName;
+        itemDecl.expr = mkIndex(coll, mkVar(idxVar));
+
+        itemDecl.next = body.body;
+        body.body = itemDecl;
+
+        Stmt forS = new Stmt();
+        forS.kind = SK.For;
+        forS.initS = initS;
+        forS.expr = condE;
+        forS.stepS = stepS;
+        forS.body = body;
+        return forS;
+    }
+
+    // for (init; cond; step) body Ã¢â‚¬â€  init/step podem ser vazios; cond vazia = true
+    Stmt ParseFor() {
+        this.Advance(); // 'for'
+        this.ExpectPunct("(");
+        Stmt s = new Stmt();
+        s.kind = SK.For;
+        if (!this.AtPunct(";")) {
+            s.initS = this.ParseSimple();
+        } else {
+            this.Advance();
+        }
+        if (!this.AtPunct(";")) {
+            s.expr = this.ParseExpr();
+        }
+        this.ExpectPunct(";");
+        if (!this.AtPunct(")")) {
+            s.stepS = this.ParseForStep();
+        }
+        this.ExpectPunct(")");
+        // Item 3 Fase 3: corpo sem chaves (igual a ParseIf/ParseWhile)
+        if (this.AtPunct("{")) {
+            s.body = this.ParseBlock();
+        } else {
+            Stmt one = new Stmt();
+            one.kind = SK.Block;
+            one.body = this.ParseStmt();
+            s.body = one;
+        }
+        return s;
+    }
+
+    // passo do for SEM ';' final: atribuiÃƒÂ§ÃƒÂ£o (simples/composta) ou expressÃƒÂ£o
+    Stmt ParseForStep() {
+        if (this.cur.kind == TokenKind.Ident) {
+            Token idTok = this.cur;
+            this.Advance();
+            if (this.cur.kind == TokenKind.Punct && this.cur.text == "[") {
+                this.Advance();
+                Node idxN = this.ParseExpr();
+                this.ExpectPunct("]");
+                if (this.cur.kind == TokenKind.Punct && (this.cur.text == "++" || this.cur.text == "--")) {
+                    string incOp = (this.cur.text == "++") ? "+=" : "-=";
+                    this.Advance();
+                    Stmt esInc = new Stmt();
+                    esInc.kind = SK.Assign;
+                    esInc.name = idTok.text;
+                    esInc.op = incOp;
+                    esInc.targetIdx = idxN;
+                    esInc.expr = mkNum("1");
+                    return esInc;
+                }
+                if (!(this.cur.kind == TokenKind.Punct &&
+                      (this.cur.text == "=" || this.cur.text == "+=" ||
+                       this.cur.text == "-=" || this.cur.text == "*=" ||
+                       this.cur.text == "/="))) {
+                    panic("parser: esperado atribuição a elemento (ParseStmtTail) em '" + idTok.text + "' cur='" + this.cur.text + "' pos=" + this.lx.pos);
+                }
+                string op = this.cur.text;
+                this.Advance();
+                Stmt s = new Stmt();
+                s.kind = SK.Assign;
+                s.name = idTok.text;
+                s.op = op;
+                s.targetIdx = idxN;
+                s.expr = this.ParseExpr();
+                return s;
+            }
+            if (this.cur.kind == TokenKind.Punct &&
+                (this.cur.text == "=" || this.cur.text == "+=" ||
+                 this.cur.text == "-=" || this.cur.text == "*=" ||
+                 this.cur.text == "/=")) {
+                string op = this.cur.text;
+                this.Advance();
+                Stmt a = new Stmt();
+                a.kind = SK.Assign;
+                a.name = idTok.text;
+                a.op = op;
+                a.expr = this.ParseExpr();
+                return a;
+            }
+            this.UndoAdvance(idTok, this.cur);
+        }
+        Stmt es = new Stmt();
+        es.kind = SK.ExprStmt;
+        es.expr = this.ParseExpr();
+        return es;
+    }
+
+    // statement "simples" (sem bloco): decl, assign ou exprstmt — para o init
+    Stmt ParseSimple() {
+        if (this.cur.kind == TokenKind.Keyword && this.IsTypeKw(this.cur.text)) {
+            return this.ParseVarDecl(this.cur.text);
+        }
+        if (this.cur.kind == TokenKind.Ident) {
+            Token idTok = this.cur;
+            this.Advance();
+            if (this.cur.kind == TokenKind.Punct && this.cur.text == "[") {
+                int savePos = this.lx.pos;
+                Token saveCur = this.cur;
+                bool savePush = this.hasPush;
+                Token savePushed = this.pushed;
+
+                bool isArrayDecl = false;
+                this.Advance();
+                if (this.cur.kind == TokenKind.Number) {
+                    this.Advance();
+                    if (this.AtPunct("]")) {
+                        this.Advance();
+                        while (this.AtPunct("[")) {
+                            this.Advance();
+                            if (this.cur.kind == TokenKind.Number) this.Advance();
+                            if (this.AtPunct("]")) this.Advance();
+                        }
+                        if (this.cur.kind == TokenKind.Ident || this.cur.kind == TokenKind.Keyword) {
+                            isArrayDecl = true;
+                        }
+                    }
+                }
+
+                this.lx.pos = savePos;
+                this.cur = saveCur;
+                this.hasPush = savePush;
+                this.pushed = savePushed;
+
+                if (isArrayDecl) {
+                    this.UndoAdvance(idTok, this.cur);
+                    return this.ParseVarDecl(idTok.text);
+                }
+
+                this.Advance();
+                Node idxN = this.ParseExpr();
+                this.ExpectPunct("]");
+                if (this.cur.kind == TokenKind.Punct && (this.cur.text == "++" || this.cur.text == "--")) {
+                    string incOp = (this.cur.text == "++") ? "+=" : "-=";
+                    this.Advance();
+                    Stmt esInc = new Stmt();
+                    esInc.kind = SK.Assign;
+                    esInc.name = idTok.text;
+                    esInc.op = incOp;
+                    esInc.targetIdx = idxN;
+                    esInc.expr = mkNum("1");
+                    this.ExpectPunct(";");
+                    return esInc;
+                }
+                if (!(this.cur.kind == TokenKind.Punct &&
+                      (this.cur.text == "=" || this.cur.text == "+=" ||
+                       this.cur.text == "-=" || this.cur.text == "*=" ||
+                       this.cur.text == "/="))) {
+                    panic("parser: esperado atribuição a elemento (ParseSimple) em '" + idTok.text + "' cur='" + this.cur.text + "' pos=" + this.lx.pos);
+                }
+                string op = this.cur.text;
+                this.Advance();
+                Stmt s = new Stmt();
+                s.kind = SK.Assign;
+                s.name = idTok.text;
+                s.op = op;
+                s.targetIdx = idxN;
+                s.expr = this.ParseExpr();
+                this.ExpectPunct(";");
+                return s;
+            }
+            if (this.cur.kind == TokenKind.Punct &&
+                (this.cur.text == "=" || this.cur.text == "+=" ||
+                 this.cur.text == "-=" || this.cur.text == "*=" ||
+                 this.cur.text == "/=")) {
+                string op = this.cur.text;
+                this.Advance();
+                Stmt a = new Stmt();
+                a.kind = SK.Assign;
+                a.name = idTok.text;
+                a.op = op;
+                a.expr = this.ParseExpr();
+                this.ExpectPunct(";");
+                return a;
+            }
+            this.UndoAdvance(idTok, this.cur);
+        }
+        Stmt es = new Stmt();
+        es.kind = SK.ExprStmt;
+        es.expr = this.ParseExpr();
+        this.ExpectPunct(";");
+        return es;
+    }
+
+    Stmt ParseDoWhile() {
+        this.Advance(); // 'do'
+        Stmt s = new Stmt();
+        s.kind = SK.Do;
+        if (this.AtPunct("{")) {
+            s.body = this.ParseBlock();
+        } else {
+            Stmt one = new Stmt();
+            one.kind = SK.Block;
+            one.body = this.ParseStmt();
+            s.body = one;
+        }
+        if (this.cur.text != "while") panic("parser: esperado 'while' apos 'do'");
+        this.Advance();
+        this.ExpectPunct("(");
+        s.expr = this.ParseExpr();
+        this.ExpectPunct(")");
+        this.ExpectPunct(";");
+        return s;
+    }
+
+    Stmt ParseCaseBody() {
+        Stmt blk = new Stmt();
+        blk.kind = SK.Block;
+        while (!this.AtPunct("}") && !this.AtEof() &&
+               this.cur.text != "case" && this.cur.text != "default") {
+            Stmt st = this.ParseStmt();
+            st.next = null;
+            if (blk.body == null) {
+                blk.body = st;
+            } else {
+                Stmt it = blk.body;
+                while (it.next != null) {
+                    it = it.next;
+                }
+                it.next = st;
+            }
+        }
+        return blk;
+    }
+
+    Stmt ParseSwitch() {
+        this.Advance(); // 'switch'
+        this.ExpectPunct("(");
+        Stmt s = new Stmt();
+        s.kind = SK.Switch;
+        s.expr = this.ParseExpr();
+        this.ExpectPunct(")");
+        this.ExpectPunct("{");
+        Stmt head = null;
+        while (!this.AtPunct("}") && !this.AtEof()) {
+            Stmt cs = new Stmt();
+            cs.kind = SK.Case;
+            if (this.cur.text == "case") {
+                this.Advance();
+                cs.expr = this.ParseExpr();
+            } else if (this.cur.text == "default") {
+                this.Advance();
+                cs.expr = null;
+            } else {
+                panic("parser: esperado 'case' ou 'default' em switch");
+            }
+            this.ExpectPunct(":");
+            cs.body = this.ParseCaseBody();
+            cs.next = null;
+            if (head == null) {
+                head = cs;
+            } else {
+                Stmt it = head;
+                while (it.next != null) {
+                    it = it.next;
+                }
+                it.next = cs;
+            }
+        }
+        this.ExpectPunct("}");
+        s.body = head;
+        return s;
+    }
+
+    Node ParseArrayInit(int level) {
+        this.ExpectPunct("{");
+        Node hd = null;
+        string csv = "";
+        bool poison = false;
+        string sep = ";";
+        if (level > 0) sep = ",";
+        if (!this.AtPunct("}")) {
+            for (;;) {
+                Node el = null;
+                string part = "";
+                bool elPoison = false;
+                if (this.AtPunct("{")) {
+                    el = this.ParseArrayInit(level + 1);
+                    if (el.text == "@") elPoison = true;
+                    else part = el.text;
+                } else {
+                    el = this.ParseExpr();
+                    if (el.kind == NK.Num) {
+                        part = el.text;
+                    } else if (el.kind == NK.Un && (el.op == "-" || el.op == "+") &&
+                               el.left != null && el.left.kind == NK.Num) {
+                        if (el.op == "-") part = "-" + el.left.text;
+                        else part = el.left.text;
+                    } else {
+                        elPoison = true;
+                    }
+                }
+                el.next = null;
+                if (hd == null) {
+                    hd = el;
+                } else {
+                    Node it = hd;
+                    while (it.next != null) {
+                        it = it.next;
+                    }
+                    it.next = el;
+                }
+                if (elPoison) {
+                    poison = true;
+                } else {
+                    if (csv != "") csv = csv + sep;
+                    csv = csv + part;
+                }
+                if (this.AtPunct(",")) {
+                    this.Advance();
+                    if (this.AtPunct("}")) break;
+                    continue;
+                }
+                break;
+            }
+        }
+        this.ExpectPunct("}");
+        Node n = new Node();
+        n.kind = NK.ArrayInit;
+        n.arg = hd;
+        if (poison) n.text = "@";
+        else n.text = csv;
+        return n;
+    }
+
+    Stmt ParseReturn() {
+        this.Advance(); // 'return'
+        Stmt s = new Stmt();
+        s.kind = SK.Return;
+        if (!this.AtPunct(";")) {
+            s.expr = this.ParseExpr();
+        }
+        this.ExpectPunct(";");
+        return s;
+    }
+
+    Stmt ParseBlock() {
+        this.ExpectPunct("{");
+        Stmt blk = new Stmt();
+        blk.kind = SK.Block;
+        while (!this.AtPunct("}") && !this.AtEof()) {
+            Stmt st = this.ParseStmt();
+            st.next = null;
+            if (blk.body == null) {
+                blk.body = st;
+            } else {
+                Stmt it = blk.body;
+                while (it.next != null) {
+                    it = it.next;
+                }
+                it.next = st;
+            }
+        }
+        this.ExpectPunct("}");
+        return blk;
+    }
+
+    // ------------------------------------------------------------------
+    // M14.4d: nÃƒÂ­vel de programa
+    // ------------------------------------------------------------------
+    bool IsTypeOrVoidKw(string kw) {
+        return this.IsTypeKw(kw) || kw == "void";
+    }
+
+    // enum Nome { A, B, C } -> valores sequenciais 0..n
+    Decl ParseEnum() {
+        this.Advance(); // 'enum'
+        if (!(this.cur.kind == TokenKind.Ident || this.cur.kind == TokenKind.Keyword)) {
+            panic("parser: esperado nome do enum");
+        }
+        Decl d = new Decl();
+        d.kind = PK.Enum;
+        d.name = this.cur.text;
+        this.Advance();
+        this.ExpectPunct("{");
+        string names = "";
+        while (!this.AtPunct("}")) {
+            if (this.AtEof()) panic("parser: } do enum ausente");
+            if (!(this.cur.kind == TokenKind.Ident || this.cur.kind == TokenKind.Keyword)) {
+                panic("parser: esperado variante do enum");
+            }
+            if (names != "") names = names + ",";
+            names = names + this.cur.text;
+            this.Advance();
+            if (this.AtPunct("(")) {
+                this.Advance();
+                string pay = "";
+                if (!this.AtPunct(")")) {
+                    for (;;) {
+                        if (!(this.cur.kind == TokenKind.Ident || this.cur.kind == TokenKind.Keyword)) {
+                            panic("parser: esperado tipo do payload");
+                        }
+                        string pty = this.cur.text;
+                        this.Advance();
+                        if (!(this.cur.kind == TokenKind.Ident || this.cur.kind == TokenKind.Keyword)) {
+                            panic("parser: esperado nome do payload");
+                        }
+                        string pnm = this.cur.text;
+                        this.Advance();
+                        if (pay != "") pay = pay + "|";
+                        pay = pay + pty + "#" + pnm;
+                        if (this.AtPunct(",")) { this.Advance(); continue; }
+                        break;
+                    }
+                }
+                this.ExpectPunct(")");
+                names = names + "(" + pay + ")";
+            }
+            if (this.AtPunct("=")) {
+                this.Advance();
+                string vneg = "";
+                if (this.AtPunct("-")) { vneg = "-"; this.Advance(); }
+                if (this.cur.kind != TokenKind.Number) panic("parser: esperado valor do enum");
+                names = names + "=" + vneg + this.cur.text;
+                this.Advance();
+            }
+            if (this.AtPunct(",")) { this.Advance(); continue; }
+            break;
+        }
+        this.ExpectPunct("}");
+        d.owner = names;
+        return d;
+    }
+
+    Pm ParseParamList() {
+        Pm head = null;
+        Pm tail = null;
+        if (!this.AtPunct(")")) {
+            for (;;) {
+                string rk = "";
+                while (this.cur.kind == TokenKind.Keyword &&
+                       (this.cur.text == "ref" || this.cur.text == "out" ||
+                        this.cur.text == "in" || this.cur.text == "threadlocal" ||
+                        this.cur.text == "atomic" || this.cur.text == "const" ||
+                        this.cur.text == "readonly")) {
+                    if (this.cur.text == "ref" || this.cur.text == "out" || this.cur.text == "in") {
+                        rk = this.cur.text;
+                    }
+                    this.Advance();
+                }
+                if (!(this.cur.kind == TokenKind.Keyword && this.IsTypeKw(this.cur.text)) &&
+                    this.cur.kind != TokenKind.Ident &&
+                    this.cur.kind != TokenKind.Keyword) {
+                    panic("parser: esperado tipo do parametro");
+                }
+                string pty = this.cur.text;
+                this.Advance();
+                int pmGenC = this.parseGenericArgs();
+                while (this.AtPunct("[")) {
+                    this.Advance();
+                    string dimTx = "";
+                    while (!this.AtPunct("]") && !this.AtEof()) {
+                        dimTx = dimTx + this.cur.text;
+                        this.Advance();
+                    }
+                    this.ExpectPunct("]");
+                    pty = pty + "[" + dimTx + "]";
+                }
+                if (this.cur.kind != TokenKind.Ident && this.cur.kind != TokenKind.Keyword) {
+                    panic("parser: esperado nome do parametro");
+                }
+                string pnm = this.cur.text;
+                this.Advance();
+                if (pty == "func" && pmGenC > 0) {
+                    string fcsv = "";
+                    for (int gi = 0; gi < pmGenC; gi++) {
+                        if (gi > 0) fcsv = fcsv + ", ";
+                        fcsv = fcsv + this._pgaArgs[gi];
+                    }
+                    pty = "func<" + fcsv + ">";
+                }
+                Pm np = mkParam(pty, pnm);
+                np.refKind = rk;
+                np.genArgsC = pmGenC;
+                for (int gi = 0; gi < pmGenC; gi++) np.genArgs[gi] = this._pgaArgs[gi];
+                if (tail == null) {
+                    head = np;
+                    tail = np;
+                } else {
+                    tail.next = np;
+                    tail = np;
+                }
+                if (this.AtPunct("=")) {
+                    this.Advance();
+                    np.defVal = this.ParseExpr();
+                }
+                if (this.AtPunct(",")) {
+                    this.Advance();
+                    continue;
+                }
+                break;
+            }
+        }
+        this.ExpectPunct(")");
+        return head;
+    }
+
+    Decl ParseClass() {
+        bool isStruct = this.cur.text == "struct";
+        bool isInterface = this.cur.text == "interface";
+        bool isActor = this.cur.text == "actor";
+        this.Advance(); // 'class' / 'struct' / 'interface' / 'actor'
+        if (!(this.cur.kind == TokenKind.Ident || this.cur.kind == TokenKind.Keyword)) {
+            panic("parser: esperado nome da classe");
+        }
+        string cname = this.cur.text;
+        this.Advance();
+        // M17 Fase 2.1: generics <T, U> da declaracao — parse manual: cada
+        // param é o texto até ',' ou '>' (suporta `const int N` como 1 param).
+        Decl cls = new Decl();
+        cls.kind = isStruct ? PK.Struct : (isInterface ? PK.Interface : (isActor ? PK.Actor : PK.Class));
+        cls.name = cname;
+        int clsGenC = 0;
+        if (this.AtPunct("<")) {
+            this.Advance();
+            int dpth = 1;
+            string curTp = "";
+            while (!this.AtEof() && dpth > 0) {
+                if (this.AtPunct("<")) { dpth = dpth + 1; curTp = curTp + "<"; this.Advance(); continue; }
+                if (this.AtPunct(">")) {
+                    dpth = dpth - 1;
+                    if (dpth == 0) break;
+                    curTp = curTp + ">";
+                    this.Advance();
+                    continue;
+                }
+                if (this.AtPunct(",")) {
+                    if (curTp != "" && clsGenC < 8) { cls.genArgs[clsGenC] = curTp; clsGenC = clsGenC + 1; }
+                    curTp = "";
+                    this.Advance();
+                    continue;
+                }
+                curTp = curTp + this.cur.text;
+                this.Advance();
+            }
+            this.ExpectPunct(">");
+            if (curTp != "" && clsGenC < 8) { cls.genArgs[clsGenC] = curTp; clsGenC = clsGenC + 1; }
+        }
+        cls.genArgsC = clsGenC;
+        if (this.AtPunct(":")) {
+            this.Advance();
+            if (this.cur.kind == TokenKind.Ident || this.cur.kind == TokenKind.Keyword) {
+                cls.fullBases = this.cur.text;
+            }
+            while (!this.AtPunct("{") && this.cur.text != "where" && !this.AtEof()) {
+                this.Advance();
+            }
+        }
+        this.ParseWhereClause(cls);
+        this.ExpectPunct("{");
+        Pm lastF = null;
+        Decl mhead = new Decl();
+        Decl mtail = mhead;
+        while (!this.AtPunct("}")) {
+            if (this.AtEof()) panic("parser: } da classe ausente");
+            bool memAsync = false;
+            while (this.cur.text == "public" || this.cur.text == "private" ||
+                   this.cur.text == "protected" || this.cur.text == "internal" ||
+                   this.cur.text == "static" || this.cur.text == "readonly" ||
+                   this.cur.text == "const" || this.cur.text == "volatile" ||
+                   this.cur.text == "async" || this.cur.text == "override" ||
+                   this.cur.text == "virtual" || this.cur.text == "atomic" ||
+                   this.cur.text == "threadlocal") {
+                if (this.cur.text == "async") memAsync = true;
+                this.Advance();
+            }
+            if (this.AtPunct("[")) {
+                int svP = this.lx.pos;
+                Token svC = this.cur;
+                bool svH = this.hasPush;
+                Token svPu = this.pushed;
+                this.Advance();
+                bool isAttr = this.AtPunct("[");
+                this.lx.pos = svP;
+                this.cur = svC;
+                this.hasPush = svH;
+                this.pushed = svPu;
+                if (isAttr) { this.SkipAttributes(); continue; }
+            }
+            if (this.cur.kind == TokenKind.Ident && this.cur.text == cname) {
+                // construtor OU campo do tipo da propria classe
+                this.Advance();
+                if (!this.AtPunct("(")) {
+                    Pm cf2 = mkParam(cname, this.cur.text);
+                    this.Advance();
+                    this.ExpectPunct(";");
+                    if (lastF == null) cls.params = cf2; else lastF.next = cf2;
+                    lastF = cf2;
+                    continue;
+                }
+                Decl cd = new Decl();
+                cd.kind = PK.Fn;
+                cd.retType = cname;
+                cd.owner = cname;
+                cd.name = cname;
+                cd.isAsync = memAsync;
+                Pm thisP = mkParam(cname, "this");
+                this.ExpectPunct("(");
+                thisP.next = this.ParseParamList();
+                cd.params = thisP;
+                cd.body = this.ParseBlock();
+                mtail.next = cd;
+                mtail = cd;
+                continue;
+            }
+            if (this.cur.kind == TokenKind.Ident || this.cur.kind == TokenKind.Keyword) {
+                Token tyTok2 = this.cur;
+                this.Advance();
+                this.parseGenericArgs();
+                if (this.AtPunct("[")) {
+                    this.Advance();
+                    int szF2 = 0;
+                    string symF2 = "";
+                    if (this.cur.kind == TokenKind.Number) {
+                        szF2 = parse_int(this.cur.text);
+                    } else if (this.cur.kind == TokenKind.Ident || this.cur.kind == TokenKind.Keyword) {
+                        symF2 = this.cur.text;
+                    } else {
+                        panic("parser: esperado tamanho do campo array");
+                    }
+                    this.Advance();
+                    this.ExpectPunct("]");
+                    if (!(this.cur.kind == TokenKind.Ident || this.cur.kind == TokenKind.Keyword)) {
+                        panic("parser: esperado nome do campo array");
+                    }
+                    Pm nf4 = mkParam(tyTok2.text + "[]", this.cur.text);
+                    nf4.arrSize = szF2;
+                    nf4.symDim = symF2;
+                    this.Advance();
+                    this.ExpectPunct(";");
+                    if (lastF == null) cls.params = nf4; else lastF.next = nf4;
+                    lastF = nf4;
+                    continue;
+                }
+                if (!(this.cur.kind == TokenKind.Ident || this.cur.kind == TokenKind.Keyword)) {
+                    panic("parser: esperado membro da classe");
+                }
+                string mname = this.cur.text;
+                this.Advance();
+                if (this.AtPunct("(")) {
+                    this.Advance(); // consome o ( do metodo
+                    Decl md = new Decl();
+                    md.kind = PK.Fn;
+                    md.retType = tyTok2.text;
+                    md.owner = cname;
+                    md.name = mname;
+                    md.isAsync = memAsync;
+                    Pm tp = mkParam(cname, "this");
+                    tp.next = this.ParseParamList();
+                    md.params = tp;
+                    this.ParseWhereClause(md);
+                    this.SkipContracts();
+                    if (this.AtPunct(";")) {
+                        this.Advance();
+                        md.body = null;
+                    } else {
+                        md.body = this.ParseBlock();
+                    }
+                    mtail.next = md;
+                    mtail = md;
+                    continue;
+                }
+                if (this.AtPunct("{")) {
+                    // Propriedade { get {} set {} } -> metodos get_X/set_X
+                    this.Advance();
+                    while (!this.AtPunct("}") && !this.AtEof()) {
+                        if (this.cur.text != "get" && this.cur.text != "set") {
+                            panic("parser: propriedade espera 'get'/'set'");
+                        }
+                        bool isGet = this.cur.text == "get";
+                        this.Advance();
+                        Stmt pbody = this.ParseBlock();
+                        Decl pf = new Decl();
+                        pf.kind = PK.Fn;
+                        pf.owner = cname;
+                        if (isGet) {
+                            pf.name = "get_" + mname;
+                            pf.retType = tyTok2.text;
+                            Pm tp = mkParam(cname, "this");
+                            pf.params = tp;
+                        } else {
+                            pf.name = "set_" + mname;
+                            pf.retType = "void";
+                            Pm tp = mkParam(cname, "this");
+                            Pm vp = mkParam(tyTok2.text, "value");
+                            tp.next = vp;
+                            pf.params = tp;
+                        }
+                        pf.body = pbody;
+                        pf.next = null;
+                        mtail.next = pf;
+                        mtail = pf;
+                    }
+                    this.ExpectPunct("}");
+                    continue;
+                }
+                this.ExpectPunct(";");
+                Pm nf = mkParam(tyTok2.text, mname);
+                if (lastF == null) cls.params = nf; else lastF.next = nf;
+                lastF = nf;
+                continue;
+            }
+            panic("parser: membro de classe inesperado '" + this.cur.text + "'");
+        }
+        this.ExpectPunct("}");
+        cls.next = mhead.next;
+        return cls;
+    }
+
+    Decl head_chain(Decl h) {
+        Decl it = h;
+        while (it.next != null) it = it.next;
+        return h;
+    }
+
+    // decl := funÃƒÂ§ÃƒÂ£o `<type> Nome(params) { ... }` | array `<type>[N] nome;`
+    //        | global `<type> nome [= expr];`
+    Decl ParseDecl() {
+        string ty = "";
+        if (this.AtPunct("(")) {
+            this.Advance();
+            ty = "(";
+            while (!this.AtPunct(")") && !this.AtEof()) {
+                ty = ty + this.cur.text;
+                this.Advance();
+            }
+            this.ExpectPunct(")");
+            ty = ty + ")";
+        } else {
+            ty = this.cur.text;
+            this.Advance(); // tipo
+        }
+        // M17: generics no tipo (ex: list<int>, Box<T>) — descarta (são typeParams da função)
+        if (this.AtPunct("<")) {
+            string gstr = "<";
+            int dpth = 1;
+            this.Advance();
+            while (!this.AtEof() && dpth > 0) {
+                if (this.AtPunct("<")) dpth = dpth + 1;
+                else if (this.AtPunct(">")) {
+                    dpth = dpth - 1;
+                    if (dpth == 0) break;
+                }
+                gstr = gstr + this.cur.text;
+                this.Advance();
+            }
+            this.ExpectPunct(">");
+            gstr = gstr + ">";
+            if (ty == "func") ty = ty + gstr;
+            else if (ty == "Option" || ty == "option" || ty == "Result" || ty == "result") ty = ty + gstr;
+        }
+        // array global ou funcao retornando array: `int[N] nome ...`
+        if (this.AtPunct("[")) {
+            string dims = "";
+            int total = 1;
+            for (;;) {
+                if (!this.AtPunct("[")) break;
+                this.Advance();
+                if (this.cur.kind != TokenKind.Number) {
+                    panic("parser: esperado tamanho do array");
+                }
+                string szTx = this.cur.text;
+                var sz = parse_int(szTx);
+                this.Advance();
+                this.ExpectPunct("]");
+                dims = dims + "[" + szTx + "]";
+                total = total * (int)sz;
+            }
+            if (this.cur.kind != TokenKind.Ident && this.cur.kind != TokenKind.Keyword) {
+                panic("parser: esperado nome do array ou funcao");
+            }
+            string aname = this.cur.text;
+            this.Advance();
+            if (this.AtPunct("(")) {
+                this.Advance();
+                Decl fd = new Decl();
+                fd.kind = PK.Fn;
+                fd.retType = ty + dims;
+                fd.fullTy = ty + dims;
+                fd.name = aname;
+                fd.params = this.ParseParamList();
+                this.ParseWhereClause(fd);
+                this.SkipContracts();
+                fd.body = this.ParseBlock();
+                return fd;
+            }
+            Decl d2 = new Decl();
+            d2.kind = PK.GVarArray;
+            d2.retType = ty;
+            d2.fullTy = ty + dims;
+            d2.name = aname;
+            d2.arrSize = total;
+            if (this.AtPunct("=")) {
+                this.Advance();
+                d2.init = this.ParseExpr();
+            }
+            this.ExpectPunct(";");
+            return d2;
+        }
+        if (this.cur.kind != TokenKind.Ident && this.cur.kind != TokenKind.Keyword) {
+            panic("parser: esperado nome apÃƒÂ³s o tipo");
+        }
+        string name = this.cur.text;
+        this.Advance();
+        // M17 Fase 2.1: generics <T> apÃ³s nome de funÃ§Ã£o (arity guardada em Decl.genArgsC)
+        int fnGenC = this.parseGenericArgs();
+
+        // função?
+        if (this.AtPunct("(")) {
+            this.Advance();
+            Decl d = new Decl();
+            d.kind = PK.Fn;
+            d.retType = ty;
+            d.name = name;
+            d.genArgsC = fnGenC;
+            d.params = this.ParseParamList();
+            this.ParseWhereClause(d);
+            this.SkipContracts();
+            d.body = this.ParseBlock();
+            return d;
+        }
+        // global simples `[= expr] ;`
+        Decl g = new Decl();
+        g.kind = PK.GVar;
+        g.retType = ty;
+        g.name = name;
+        if (this.AtPunct("=")) {
+            this.Advance();
+            g.init = this.ParseExpr();
+        }
+        this.ExpectPunct(";");
+        return g;
+    }
+
+    // programa := decl* atÃƒÂ© EOF (nÃƒÂ³ cabeÃƒÂ§a dummy satisfaz o null analysis)
+    public Decl ParseProgram() {
+        Decl head = new Decl();
+        Decl tail = head;
+        while (!this.AtEof()) {
+            this.SkipAttributes();
+                        // M15.4: `import ...;` Ã¢â‚¬â€ ignorado no nÃƒÂ­vel de programa
+            if (this.cur.text == "import") {
+                this.Advance();
+                string ipath = "";
+                string ilast = "";
+                if (this.cur.kind == TokenKind.Ident || this.cur.kind == TokenKind.Keyword) {
+                    ipath = this.cur.text;
+                    ilast = this.cur.text;
+                    this.Advance();
+                    while (this.AtPunct(".")) {
+                        this.Advance();
+                        if (this.cur.kind == TokenKind.Ident || this.cur.kind == TokenKind.Keyword) {
+                            ipath = ipath + "." + this.cur.text;
+                            ilast = this.cur.text;
+                            this.Advance();
+                        }
+                    }
+                } else if (this.cur.kind == TokenKind.Str) {
+                    ipath = this.cur.text;
+                    ilast = this.QNameStem(this.cur.text);
+                    this.Advance();
+                }
+                string ialias = ilast;
+                if (this.cur.text == "as") {
+                    this.Advance();
+                    if (this.cur.kind == TokenKind.Ident || this.cur.kind == TokenKind.Keyword) {
+                        ialias = this.cur.text;
+                        this.Advance();
+                    }
+                }
+                while (!this.AtPunct(";") && !this.AtEof()) {
+                    this.Advance();
+                }
+                this.ExpectPunct(";");
+                if (ipath != "" && ialias != "") {
+                    Decl im = new Decl();
+                    im.kind = PK.Import;
+                    im.name = ialias;
+                    im.retType = ipath;
+                    im.next = null;
+                    tail.next = im;
+                    tail = im;
+                    this.QAddAlias(ialias);
+                }
+                continue;
+            }
+            // M15.3: `module Nome;` Ã¢â‚¬â€ ignorado no nÃƒÂ­vel de programa
+                        if (this.cur.text == "specialize") {
+                this.Advance();
+                while (!this.AtPunct(";") && !this.AtEof()) {
+                    this.Advance();
+                }
+                this.ExpectPunct(";");
+                continue;
+            }
+if (this.cur.text == "module") {
+                this.Advance();
+                if (!(this.cur.kind == TokenKind.Ident || this.cur.kind == TokenKind.Keyword)) {
+                    panic("parser: esperado nome do módulo");
+                }
+                this.QAddMod(this.cur.text);
+                this.Advance();
+                if (this.cur.text == "depends") {
+                    this.Advance();
+                    if (this.cur.text == "on") this.Advance();
+                    while (!this.AtPunct(";") && !this.AtEof()) {
+                        this.Advance();
+                    }
+                }
+                this.ExpectPunct(";");
+                continue;
+            }
+            if (this.cur.text == "using" || this.cur.text == "use") {
+                this.Advance();
+                if (this.cur.kind == TokenKind.Ident || this.cur.kind == TokenKind.Keyword) {
+                    string ua = this.cur.text;
+                    this.Advance();
+                    if (this.AtPunct("=")) {
+                        this.Advance();
+                        string ut = "";
+                        if (this.cur.kind == TokenKind.Ident || this.cur.kind == TokenKind.Keyword) {
+                            ut = this.cur.text;
+                            this.Advance();
+                            while (this.AtPunct(".")) {
+                                this.Advance();
+                                if (this.cur.kind == TokenKind.Ident || this.cur.kind == TokenKind.Keyword) {
+                                    ut = ut + "." + this.cur.text;
+                                    this.Advance();
+                                }
+                            }
+                        }
+                        while (!this.AtPunct(";") && !this.AtEof()) {
+                            this.Advance();
+                        }
+                        this.ExpectPunct(";");
+                        if (ut != "") this.QAddUsing(ua, ut);
+                        continue;
+                    }
+                }
+                while (!this.AtPunct(";") && !this.AtEof()) {
+                    this.Advance();
+                }
+                this.ExpectPunct(";");
+                continue;
+            }
+            bool modAsync = false;
+            bool modAtomic = false;
+            bool modTls = false;
+            while (!this.hasPush && !this.AtEof() &&
+                   (this.cur.text == "public" || this.cur.text == "private" ||
+                    this.cur.text == "protected" || this.cur.text == "internal" ||
+                    this.cur.text == "const" || this.cur.text == "readonly" ||
+                    this.cur.text == "volatile" || this.cur.text == "compiletime" ||
+                    this.cur.text == "shared" || this.cur.text == "threadlocal" ||
+                    this.cur.text == "atomic" || this.cur.text == "static" ||
+                    this.cur.text == "inline" || this.cur.text == "async")) {
+                if (this.cur.text == "async") modAsync = true;
+                if (this.cur.text == "atomic") modAtomic = true;
+                if (this.cur.text == "threadlocal") modTls = true;
+                this.Advance();
+            }
+            if (this.cur.text == "using" || this.cur.text == "use") {
+                this.Advance();
+                if (this.cur.kind == TokenKind.Ident || this.cur.kind == TokenKind.Keyword) {
+                    string ua = this.cur.text;
+                    this.Advance();
+                    if (this.AtPunct("=")) {
+                        this.Advance();
+                        string ut = "";
+                        if (this.cur.kind == TokenKind.Ident || this.cur.kind == TokenKind.Keyword) {
+                            ut = this.cur.text;
+                            this.Advance();
+                            while (this.AtPunct(".")) {
+                                this.Advance();
+                                if (this.cur.kind == TokenKind.Ident || this.cur.kind == TokenKind.Keyword) {
+                                    ut = ut + "." + this.cur.text;
+                                    this.Advance();
+                                }
+                            }
+                        }
+                        while (!this.AtPunct(";") && !this.AtEof()) {
+                            this.Advance();
+                        }
+                        this.ExpectPunct(";");
+                        if (ut != "") this.QAddUsing(ua, ut);
+                        continue;
+                    }
+                }
+                while (!this.AtPunct(";") && !this.AtEof()) {
+                    this.Advance();
+                }
+                this.ExpectPunct(";");
+                continue;
+            }
+            if (this.cur.text == "reflect") {
+                this.Advance();
+                if (!(this.cur.kind == TokenKind.Ident || this.cur.kind == TokenKind.Keyword)) {
+                    panic("parser: esperado nome da classe apos 'reflect'");
+                }
+                Decl rf = new Decl();
+                rf.kind = PK.Reflect;
+                rf.name = this.cur.text;
+                this.Advance();
+                this.ExpectPunct(";");
+                rf.next = null;
+                tail.next = rf;
+                tail = rf;
+                continue;
+            }
+            // M15.4 + M23.1 2.3: funcao com retorno de CLASSE ou typeParam:
+            // `Node mkNum(...)`, `T Primeiro<T>(T a, T b) { return a; }`
+            // (tipo de retorno é Ident ou Keyword de typeParam como `T`).
+            // Não pode ser keyword reservada (class/void/int/...).
+            if (this.cur.kind == TokenKind.Ident ||
+                (this.cur.kind == TokenKind.Keyword &&
+                 !this.IsTypeOrVoidKw(this.cur.text) &&
+                 this.cur.text != "class" && this.cur.text != "enum" &&
+                 this.cur.text != "struct" && this.cur.text != "interface" &&
+                 this.cur.text != "actor" && this.cur.text != "derive" &&
+                 this.cur.text != "import" && this.cur.text != "module")) {
+                string rty4 = this.cur.text;
+                this.Advance();
+                if (this.AtPunct("<")) {
+                    int dpth = 1;
+                    this.Advance();
+                    string gcsv = "";
+                    string gcur = "";
+                    while (!this.AtEof() && dpth > 0) {
+                        if (this.AtPunct("<")) { dpth = dpth + 1; if (gcur != "") { if (gcsv != "") gcsv = gcsv + ", "; gcsv = gcsv + gcur; gcur = ""; } this.Advance(); continue; }
+                        if (this.AtPunct(">")) {
+                            dpth = dpth - 1;
+                            if (dpth == 0) break;
+                            if (gcur != "") { if (gcsv != "") gcsv = gcsv + ", "; gcsv = gcsv + gcur; gcur = ""; }
+                            this.Advance();
+                            continue;
+                        }
+                        if (this.AtPunct(",")) {
+                            if (gcur != "") { if (gcsv != "") gcsv = gcsv + ", "; gcsv = gcsv + gcur; gcur = ""; }
+                            this.Advance();
+                            continue;
+                        }
+                        gcur = gcur + this.cur.text;
+                        this.Advance();
+                    }
+                    this.ExpectPunct(">");
+                    if (gcur != "") { if (gcsv != "") gcsv = gcsv + ", "; gcsv = gcsv + gcur; }
+                    if (gcsv != "" && (rty4 == "Option" || rty4 == "option" || rty4 == "Result" || rty4 == "result")) {
+                        rty4 = rty4 + "<" + gcsv + ">";
+                    }
+                }
+                string mn4 = "";
+                if (this.AtPunct("(")) {
+                    mn4 = rty4;
+                    rty4 = "void";
+                } else {
+                    if (!(this.cur.kind == TokenKind.Ident || this.cur.kind == TokenKind.Keyword)) {
+                        panic("parser: esperado nome da funcao");
+                    }
+                    mn4 = this.cur.text;
+                    this.Advance();
+                }
+                if (this.AtPunct(";") || this.AtPunct("=")) {
+                    Decl g4 = new Decl();
+                    g4.kind = PK.GVar;
+                    g4.retType = rty4;
+                    g4.name = mn4;
+                    if (this.AtPunct("=")) {
+                        this.Advance();
+                        g4.init = this.ParseExpr();
+                    }
+                    this.ExpectPunct(";");
+                    g4.next = null;
+                    tail.next = g4;
+                    tail = g4;
+                    continue;
+                }
+                // M23.1 2.3: generics <T> após nome (arity guardada em Decl.genArgsC)
+                int fnGenC4 = this.parseGenericArgs();
+                if (fnGenC4 > 0) {
+                    if (rty4 == "Option" || rty4 == "option" || rty4 == "Result" || rty4 == "result") {
+                        string gcsv = "";
+                        for (int gi = 0; gi < fnGenC4; gi++) {
+                            if (gi > 0) gcsv = gcsv + ", ";
+                            gcsv = gcsv + this._pgaArgs[gi];
+                        }
+                        rty4 = rty4 + "<" + gcsv + ">";
+                    }
+                }
+                this.ExpectPunct("(");
+                Decl fd4 = new Decl();
+                fd4.kind = PK.Fn;
+                fd4.retType = rty4;
+                fd4.name = mn4;
+                fd4.genArgsC = fnGenC4;
+                fd4.params = this.ParseParamList();
+                this.ParseWhereClause(fd4);
+                this.SkipContracts();
+                fd4.body = this.ParseBlock();
+                fd4.next = null;
+                tail.next = fd4;
+                tail = fd4;
+                continue;
+            }
+            if (this.cur.text == "derive") {
+                this.Advance();
+                while (this.cur.kind == TokenKind.Ident || this.cur.kind == TokenKind.Keyword || this.AtPunct(",") || this.AtPunct("(") || this.AtPunct(")")) {
+                    this.Advance();
+                    if (this.cur.text == "class" || this.cur.text == "struct" || this.cur.text == "enum" || this.cur.text == "interface" || this.cur.text == "actor") break;
+                }
+                continue;
+            }
+            bool isCls = this.cur.text == "class" || this.cur.text == "struct" || this.cur.text == "interface" || this.cur.text == "actor";
+            bool isEnum = this.cur.text == "enum";
+            bool isTuple = this.AtPunct("(");
+            if (!isTuple && !(this.cur.kind == TokenKind.Keyword &&
+                  (this.IsTypeOrVoidKw(this.cur.text) || isCls || isEnum))) {
+                panic("parser: esperado declaracao (tipo ou void), obtido '" +
+                      this.cur.text + "' ctx=" + sub_str(this.lx.src, this.lx.pos - 60, 90));
+            }
+            if (isEnum) {
+                Decl ed = this.ParseEnum();
+                ed.next = null;
+                tail.next = ed;
+                tail = ed;
+                continue;
+            }
+            if (!isTuple && !(this.cur.kind == TokenKind.Keyword &&
+                  (this.IsTypeOrVoidKw(this.cur.text) || isCls))) {
+                panic("parser: esperado declaracao (tipo ou void), obtido '" +
+                      this.cur.text + "' ctx=" + sub_str(this.lx.src, this.lx.pos - 60, 90));
+            }
+            if (isCls) {
+                Decl ch = this.ParseClass();
+                while (ch != null) {
+                    Decl nx = ch.next;
+                    ch.next = null;
+                    tail.next = ch;
+                    tail = ch;
+                    ch = nx;
+                }
+                continue;
+            }
+            Decl d = this.ParseDecl();
+            if (modAsync && d.kind == PK.Fn) d.isAsync = true;
+            if (modAtomic && (d.kind == PK.GVar || d.kind == PK.Fn)) d.isAtomic = true;
+            if (modTls && d.kind == PK.GVar) d.isTls = true;
+            d.next = null;
+            tail.next = d;
+            tail = d;
+        }
+        return head.next;
+    }
+}
+
+// imprime a ÃƒÆ’Ã‚Â¡rvore em notaÃƒÆ’Ã‚Â§ÃƒÆ’Ã‚Â£o prefixa (S-expr)
+string ToS(Node n) {
+    if (n.kind == NK.Num || n.kind == NK.Var) return n.text;
+    if (n.kind == NK.Str) return "\"" + n.text + "\"";
+    if (n.kind == NK.Un) return "(" + n.op + " " + ToS(n.left) + ")";
+    if (n.kind == NK.Bin) return "(" + n.op + " " + ToS(n.left) + " " + ToS(n.right) + ")";
+    if (n.kind == NK.Call) {
+        string s = "(" + n.text;
+        Node a = n.arg;
+        while (a != null) {
+            s = s + " " + ToS(a);
+            a = a.next;
+        }
+        return s + ")";
+    }
+    return "?";
+}
+
+// S-expr de statements
+string StmtToS(Stmt s) {
+    if (s.kind == SK.VarDecl && s.isArray) {
+        return "(var-array " + s.name + " " + s.text + "[" + s.arrSize + "])";
+    }
+    if (s.kind == SK.VarDecl) {
+        if (s.expr == null) return "(var " + s.name + " " + s.text + ")";
+        return "(var " + s.name + " " + s.text + " " + ToS(s.expr) + ")";
+    }
+    if (s.kind == SK.Assign && s.targetIdx != null) {
+        return "(" + s.op + " " + s.name + "[" + ToS(s.targetIdx) + "] " + ToS(s.expr) + ")";
+    }
+    if (s.kind == SK.Assign) return "(" + s.op + " " + s.name + " " + ToS(s.expr) + ")";
+    if (s.kind == SK.ExprStmt) return ToS(s.expr);
+    if (s.kind == SK.Return) {
+        if (s.expr == null) return "(return)";
+        return "(return " + ToS(s.expr) + ")";
+    }
+    if (s.kind == SK.While) return "(while " + ToS(s.expr) + " " + StmtToS(s.body) + ")";
+    if (s.kind == SK.Break) return "(break)";
+    if (s.kind == SK.Continue) return "(continue)";
+    if (s.kind == SK.For) {
+        string ini = s.initS != null ? StmtToS(s.initS) : "";
+        string cnd = s.expr != null ? ToS(s.expr) : "";
+        string stp = s.stepS != null ? StmtToS(s.stepS) : "";
+        return "(for " + ini + " ; " + cnd + " ; " + stp + " " +
+               StmtToS(s.body) + ")";
+    }
+    if (s.kind == SK.If) {
+        string r = "(if " + ToS(s.expr) + " " + StmtToS(s.body);
+        if (s.elseBody != null) r = r + " " + StmtToS(s.elseBody);
+        return r + ")";
+    }
+    if (s.kind == SK.Block) {
+        string r = "(block";
+        Stmt it = s.body;
+        while (it != null) {
+            r = r + " " + StmtToS(it);
+            it = it.next;
+        }
+        return r + ")";
+    }
+    return "?";
+}
+
+// S-expr de declaraÃƒÂ§ÃƒÂµes de nÃƒÂ­vel de programa
+string DeclToS(Decl d) {
+    if (d.kind == PK.GVar) {
+        if (d.init == null) return "(gvar " + d.retType + " " + d.name + ")";
+        return "(gvar " + d.retType + " " + d.name + " " + ToS(d.init) + ")";
+    }
+    if (d.kind == PK.GVarArray) {
+        return "(gvar-array " + d.retType + " " + d.name + " " +
+               ("" + d.arrSize) + ")";
+    }
+    // funÃƒÂ§ÃƒÂ£o
+    string r = "(fn " + d.retType + " " + d.name + " (params";
+    Pm p = d.params;
+    while (p != null) {
+        r = r + " (" + p.type + " " + p.name + ")";
+        p = p.next;
+    }
+    r = r + ") " + StmtToS(d.body) + ")";
+    return r;
+}

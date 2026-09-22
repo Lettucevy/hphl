@@ -1,0 +1,5 @@
+// erro_str_len_bad.hphl — builtin da std com tipo de argumento errado
+// é rejeitado pelo registro declarativo (M12.2)
+void Main() {
+    println(str_len(5));
+}

@@ -1,0 +1,5 @@
+interface I {
+  int valor;
+  void F();
+}
+void Main() { }

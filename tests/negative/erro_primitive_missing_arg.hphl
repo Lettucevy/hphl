@@ -1,0 +1,8 @@
+// erro_primitive_missing_arg.hphl - teste negativo (v0.24.0): semaphore exige
+// contador inicial `semaphore s(N)` — sem argumento é erro de compilação.
+
+void Main() {
+    semaphore s;
+    s.Signal();
+    print("nunca");
+}

@@ -1,0 +1,7 @@
+// erro: string não suporta o operador '-' (where T : supports -)
+public T Sub<T>(T a, T b) where T : supports - {
+    return a - b;
+}
+void Main() {
+    print(Sub("a", "b"));
+}

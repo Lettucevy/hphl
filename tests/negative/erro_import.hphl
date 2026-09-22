@@ -1,0 +1,8 @@
+// erro_import.hphl - negative test (Milestone 2)
+// Importing a non-existent module must fail to compile.
+
+import NoSuchModule;
+
+void Main() {
+    print("unreachable");
+}

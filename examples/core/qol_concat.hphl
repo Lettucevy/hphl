@@ -1,0 +1,16 @@
+module qol_concat;
+
+// String concatenation with automatic coercion, println, and toString
+void Main() {
+    int x = 42;
+    float pi = 3.14159;
+    bool ok = true;
+    char c = 'A';
+    u64 u = 7;
+    string s = "valor";
+    print("x = " + x + ", pi = " + pi + ", ok = " + ok + ", c = " + c + ", u = " + u + ", s = " + s);
+    println("concluido");
+    println("toString direto: " + toString(123));
+    println("duas strings: " + "a" + "b");
+    println("int seguido de string: " + 1 + " e " + 2.5);
+}

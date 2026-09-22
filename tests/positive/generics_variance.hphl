@@ -1,0 +1,50 @@
+// generics_variance.hphl — teste de variância em interfaces (out T covariante, in T contravariante)
+class Animal {
+    public string Name;
+}
+
+class Dog : Animal {
+    public string Breed;
+}
+
+interface IProducer<out T> {
+    T Produce();
+}
+
+interface IConsumer<in T> {
+    void Consume(T item);
+}
+
+class DogProducer : IProducer<Dog> {
+    public Dog Produce() {
+        Dog d = new Dog();
+        d.Name = "Rex";
+        d.Breed = "Collie";
+        return d;
+    }
+}
+
+class AnimalConsumer : IConsumer<Animal> {
+    public void Consume(Animal a) {
+        print("Consumindo animal: ");
+        println(a.Name);
+    }
+}
+
+void Main() {
+    // 1. Covariância: IProducer<Dog> atribuível a IProducer<Animal>
+    IProducer<Dog> dp = new DogProducer();
+    IProducer<Animal> ap = dp;
+    Animal a = ap.Produce();
+    println(a.Name);
+
+    // 2. Contravariância: IConsumer<Animal> atribuível a IConsumer<Dog>
+    IConsumer<Animal> ac = new AnimalConsumer();
+    IConsumer<Dog> dc = ac;
+    Dog d = new Dog();
+    d.Name = "Bob";
+    d.Breed = "Labrador";
+    dc.Consume(d);
+
+    print("variance ok\n");
+}

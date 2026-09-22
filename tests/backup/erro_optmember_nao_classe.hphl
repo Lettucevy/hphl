@@ -1,0 +1,4 @@
+void Main() {
+  int x = 5;
+  x?.Algo();
+}

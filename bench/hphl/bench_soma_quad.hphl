@@ -1,0 +1,8 @@
+void main() {
+    int n = 10000;
+    int soma = 0;
+    for (int i = 1; i <= n; i++) soma += i * i;
+    print("soma_quadrados = ");
+    print(soma);
+    print("\n");
+}

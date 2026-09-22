@@ -1,0 +1,7 @@
+class Box<T> {
+    public T item;
+    public int Bad() { return item; }
+}
+specialize Box<string>;
+void Main() {
+}

@@ -1,0 +1,79 @@
+// tests/positive/lambda_capture.hphl
+// Capturas por valor: semântica de cópia, envs independentes, aninhadas,
+// recursão (func explícito) e captura de `this` (v0.95)
+
+func<int, int> adder(int n) {
+    return (x) => x + n;
+}
+
+func<int, int> fact() {
+    func<int, int> f = (n) => n <= 1 ? 1 : n * f(n - 1);
+    return f;
+}
+
+class Acc {
+    int total;
+    Acc(int t) { this.total = t; }
+    func<int, int> bump() {
+        return (x) => x + this.total;
+    }
+}
+
+void Main() {
+    // captura por valor: reatribuição posterior não afeta
+    int off = 100;
+    var f = (x) => x + off;
+    assert(f(1) == 101);
+    off = 200;
+    assert(f(1) == 101);
+
+    // captura de string + concat
+    string pre = "v=";
+    assert(pre + f(0) == "v=100");
+
+    // envs independentes por criação
+    var add5 = adder(5);
+    var add7 = adder(7);
+    assert(add5(10) == 15);
+    assert(add7(10) == 17);
+    assert(add5(10) == 15);
+
+    // lambda aninhada captura param externo
+    var outer = (a) => {
+        var inner = (b) => a + b;
+        return inner(100);
+    };
+    assert(outer(5) == 105);
+
+    // recursão via tipo explícito
+    var fc = fact();
+    assert(fc(5) == 120);
+
+    // captura de `this` em método
+    Acc acc = new Acc(100);
+    var b = acc.bump();
+    assert(b(1) == 101);
+
+    string prefix = "value=";
+    var format = (int value) => prefix + value;
+    prefix = "changed=";
+    assert(format(7) == "value=7");
+
+    string label = "outer";
+    var shadow = (int label) => label + 1;
+    assert(shadow(4) == 5);
+    assert(label == "outer");
+
+    // captura usada só na lambda + chamada com 5 args (stack args)
+    int extra = 10;
+    var sum = (int a, int b, int c, int d, int e) => a + b + c + d + e + extra;
+    assert(sum(1, 2, 3, 4, 5) == 25);
+
+    print(format(7));
+    print(" ");
+    print(sum(1, 2, 3, 4, 5));
+    print(" ");
+    print(fc(6));
+    print("\n");
+    print("lambda_capture passed!\n");
+}

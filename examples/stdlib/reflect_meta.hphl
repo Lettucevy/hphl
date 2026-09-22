@@ -1,0 +1,29 @@
+// reflect_meta.hphl: Zero-cost compile-time reflection metadata
+// `reflect Nome;` habilita metadados consultáveis EM COMPILAÇÃO —
+// SizeOf/FieldCount/HasField/FieldOffset dobram para constantes
+// (custo zero no executável final)
+class Ponto {
+    public int x;
+    private int y;
+}
+
+class Marcador : Ponto {
+    public string tag;
+}
+
+reflect Ponto;
+reflect Marcador;
+
+void Main() {
+    print(SizeOf(Ponto));
+    println();
+    print(SizeOf(Marcador));
+    println();
+    print(FieldCount(Marcador));
+    println();
+    print(HasField(Marcador, "y"));
+    println();
+    print(HasField(Ponto, "tag"));
+    println();
+    print(FieldOffset(Marcador, "tag"));
+}

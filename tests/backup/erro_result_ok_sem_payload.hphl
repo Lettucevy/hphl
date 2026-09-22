@@ -1,0 +1,8 @@
+struct E {
+  int c;
+  E(int c) { this.c = c; }
+}
+
+Result<int, E> R() {
+  return Ok;
+}

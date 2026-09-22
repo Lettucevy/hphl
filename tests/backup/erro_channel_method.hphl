@@ -1,0 +1,7 @@
+// erro_channel_method.hphl - teste negativo: channel possui apenas 'Send(x)'
+// e 'Receive()' (spec §10, M2)
+void Main() {
+    channel<int> ch = new channel<int>(2);
+    ch.Push(1); // erro: método desconhecido
+    print("done\n");
+}

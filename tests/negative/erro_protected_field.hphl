@@ -1,0 +1,7 @@
+class Conta {
+    protected int limite;
+}
+void Main() {
+    Conta c;
+    print(c.limite);
+}

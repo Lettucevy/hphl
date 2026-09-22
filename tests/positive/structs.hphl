@@ -1,0 +1,62 @@
+struct Ponto {
+  int x;
+  int y;
+  Ponto(int x, int y) { this.x = x; this.y = y; }
+  void Move(int dx, int dy) { this.x += dx; this.y += dy; }
+  int Soma() { return this.x + this.y; }
+}
+
+interface IDamageable {
+  void ReceberDano(int dano);
+  int Vida();
+}
+
+class Player : IDamageable {
+  int vida;
+  Player(int v) { this.vida = v; }
+  void ReceberDano(int dano) { this.vida -= dano; }
+  int Vida() { return this.vida; }
+}
+
+struct Caixa : IDamageable {
+  int vida;
+  int Bonus;
+  Caixa(int v, int b) { this.vida = v; this.Bonus = b; }
+  void ReceberDano(int dano) { this.vida -= dano; }
+  int Vida() { return this.vida + this.Bonus; }
+}
+
+int Dobra(Ponto p) { p.x = p.x * 2; return p.x; }
+
+Ponto Soma2(Ponto p) { p.x = p.x + p.x * 2; return p; }
+
+void Main() {
+  Ponto a = new Ponto(3, 4);
+  print(a.Soma(), "\n");
+
+  Ponto c = new Ponto(1, 2);
+  c.x = 10;
+  print(c.x, "\n");
+
+  int d = Dobra(c);
+  print(d, "\n");
+  print(c.x, "\n");
+
+  a = c;
+  a.x = 99;
+  print(c.x, "\n");
+  print(a.x, "\n");
+
+  Ponto r = Soma2(c);
+  print(r.x, "\n");
+  print(c.x, "\n");
+
+  Player j = new Player(100);
+  j.ReceberDano(30);
+  print(j.Vida(), "\n");
+
+  Caixa cx = new Caixa(50, 7);
+  print(cx.Vida(), "\n");
+  cx.ReceberDano(10);
+  print(cx.Vida(), "\n");
+}

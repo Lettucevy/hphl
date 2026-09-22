@@ -1,0 +1,12 @@
+// erro: match sobre list sem '_'/'[..resto]' nem '[]'+'..resto'
+int f(list<int> xs) {
+  return match (xs) {
+    [] => 0,
+    [a] => 1,
+  };
+}
+
+void Main() {
+  list<int> x;
+  print(f(x), "\n");
+}

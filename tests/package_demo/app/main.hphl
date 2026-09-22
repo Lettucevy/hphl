@@ -1,0 +1,6 @@
+import "../lib_math/math.hphl";
+
+void Main() {
+    int r = Somar(40, 2);
+    println("Resultado TOML: " + r);
+}

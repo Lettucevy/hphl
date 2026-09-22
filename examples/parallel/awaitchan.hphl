@@ -1,0 +1,26 @@
+// awaitchan.hphl: `await ch.Receive()` syntactic sugar over channels
+// Receive blocks until value arrives; await provides uniform syntax.
+// payload é entregue sem manipular a task).
+//
+// Saída esperada:
+//   7
+//   done
+
+void Main() {
+    channel<int> ch = new channel<int>(4); // local: globais não têm `new` no M2
+
+    // producer: sends value and completes (Send blocks until buffer accepts)
+    // o buffer aceitar)
+    spawn {
+        ch.Send(7);
+    }
+
+    // consumer: `await ch.Receive()` blocks until data arrives
+    // and unpacks payload directly without explicit task handle
+    int v = await ch.Receive();
+    print(v); // 7
+    print("\n");
+
+    print("done");
+    print("\n");
+}

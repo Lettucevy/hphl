@@ -1,0 +1,105 @@
+{
+  "Main Entry Point": {
+    "prefix": "main",
+    "body": [
+      "module ${1:main};",
+      "",
+      "void Main() {",
+      "\t${0:print(\"Hello, HP-HL!\\n\");}",
+      "}"
+    ],
+    "description": "Ponto de entrada padrão Main() do HP-HL"
+  },
+  "Function Definition": {
+    "prefix": "fn",
+    "body": [
+      "${1:void} ${2:MinhaFuncao}(${3:int x}) {",
+      "\t${0}",
+      "}"
+    ],
+    "description": "Declaração de função em HP-HL"
+  },
+  "Struct Definition": {
+    "prefix": "struct",
+    "body": [
+      "struct ${1:Vec3} {",
+      "\t${2:float x;}",
+      "\t${3:float y;}",
+      "\t${4:float z;}",
+      "}"
+    ],
+    "description": "Declaração de struct plana (zero overhead, alocação na stack)"
+  },
+  "Class Definition": {
+    "prefix": "class",
+    "body": [
+      "class ${1:Entidade} {",
+      "\tpublic ${2:string Name;}",
+      "",
+      "\tpublic ${1:Entidade}(${2:string name}) {",
+      "\t\t${3:this.Name = name;}",
+      "\t}",
+      "",
+      "\t${0}",
+      "}"
+    ],
+    "description": "Declaração de classe com construtor e campos (heap GC)"
+  },
+  "Interface Definition": {
+    "prefix": "interface",
+    "body": [
+      "interface ${1:IDrawable} {",
+      "\tvoid Draw();",
+      "}"
+    ],
+    "description": "Declaração de interface"
+  },
+  "Extern FFI Function": {
+    "prefix": "extern",
+    "body": [
+      "extern \"${1:user32}\" ${2:int} ${3:MessageBoxA}(${4:ptr hwnd, string text, string caption, int type});"
+    ],
+    "description": "Importação de função nativa via FFI v2"
+  },
+  "Concurrent Channel": {
+    "prefix": "channel",
+    "body": [
+      "channel<${1:int}> ${2:ch} = new channel<${1:int}>(${3:10});"
+    ],
+    "description": "Criação de canal concorrente tipado"
+  },
+  "Spawn Task": {
+    "prefix": "spawn",
+    "body": [
+      "spawn {",
+      "\t${0}",
+      "};"
+    ],
+    "description": "Dispara uma tarefa assíncrona em threadpool leve"
+  },
+  "For Loop": {
+    "prefix": "for",
+    "body": [
+      "for (int ${1:i} = 0; ${1:i} < ${2:10}; ${1:i} = ${1:i} + 1) {",
+      "\t${0}",
+      "}"
+    ],
+    "description": "Laço for tradicional do HP-HL"
+  },
+  "While Loop": {
+    "prefix": "while",
+    "body": [
+      "while (${1:condition}) {",
+      "\t${0}",
+      "}"
+    ],
+    "description": "Laço while"
+  },
+  "Print Line": {
+    "prefix": "print",
+    "body": [
+      "print(${1:\"Mensagem\\n\"});"
+    ],
+    "description": "Imprime texto no console padrão"
+  }
+}

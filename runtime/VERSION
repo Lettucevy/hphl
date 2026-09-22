@@ -1,0 +1,2 @@
+HPHL_RUNTIME_ABI_VERSION = 100
+# Stable ABI v1.0.0 — qualquer mudança incompatível requer major bump

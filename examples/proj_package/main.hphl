@@ -1,0 +1,7 @@
+import "libs/util/util.hphl";
+
+void Main() {
+    println("Package Manager M14.2 OK");
+    int resultado = Dobro(10 * 5);
+    println("Resultado: " + resultado);
+}

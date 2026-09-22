@@ -1,0 +1,4 @@
+void Main() {
+    assert(1 == 2);
+    print("unreachable\n");
+}

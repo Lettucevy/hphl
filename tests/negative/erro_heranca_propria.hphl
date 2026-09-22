@@ -1,0 +1,8 @@
+// erro_heranca_propria.hphl — classe não pode herdar de si mesma
+class SelfRef : SelfRef {
+    int x;
+}
+
+void Main() {
+    SelfRef s = new SelfRef();
+}

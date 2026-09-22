@@ -1,0 +1,14 @@
+// erro_lock_toctou.hphl — decisão tomada sob lock e re-leitura fora dele:
+// o valor pode ter mudado entre o check e o uso (M11.8, spec §3/§10)
+class Caixa {
+    public int valor;
+}
+
+void Main() {
+    Caixa cx = new Caixa();
+    lock (cx) {
+        int snapshot = cx.valor;
+        println(snapshot);
+    }
+    println(cx.valor);
+}

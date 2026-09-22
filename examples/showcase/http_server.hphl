@@ -1,0 +1,230 @@
+/*
+http_server.hphl -- RC-8 (Sprint 5) + item 2.11 (v0.95): servidor HTTP real.
+
+HTTP/1.0 sobre TCP (std.net): parse da request line + headers, roteamento,
+respostas com Content-Length, POST com corpo. O Main sobe o servidor numa
+task e faz requests clientes reais (loopback), com asserts ponta a ponta.
+*/
+module http_server;
+
+derive Sendable
+class Request {
+    public string Method;
+    public string Path;
+    public string Body;
+    public Request(string m, string p, string b) { Method = m; Path = p; Body = b; }
+}
+
+derive Sendable
+class Response {
+    public int Status;
+    public string Body;
+    public Response(int s, string b) { Status = s; Body = b; }
+}
+
+// Reads until end of headers (\r\n\r\n) or socket closes; max 32 iterations
+string ReadHeaders(int cli) {
+    string acc = "";
+    int n = 0;
+    while (n < 32) {
+        string chunk = recv(cli, 4096);
+        acc = acc + chunk;
+        if (str_len(chunk) == 0) break;
+        if (index_of(acc, "\r\n\r\n") >= 0) break;
+        n = n + 1;
+    }
+    return acc;
+}
+
+// Extracts "METHOD PATH ..." from HTTP request line
+Request ParseRequest(string raw, string body) {
+    int sp1 = index_of(raw, " ");
+    string method = sub_str(raw, 0, sp1);
+    string rest = sub_str(raw, sp1 + 1, str_len(raw) - sp1 - 1);
+    int sp2 = index_of(rest, " ");
+    string path = sub_str(rest, 0, sp2);
+    return new Request(method, path, body);
+}
+
+// Parses Content-Length header value (0 if absent)
+int ContentLen(string head) {
+    int i = index_of(head, "Content-Length:");
+    if (i < 0) {
+        i = index_of(head, "content-length:");
+    }
+    if (i < 0) return 0;
+    string tail = sub_str(head, i + 15, str_len(head) - i - 15);
+    int j = 0;
+    while (j < str_len(tail) && !IsDig(tail[j])) j = j + 1;
+    int k = j;
+    while (k < str_len(tail) && IsDig(tail[k])) k = k + 1;
+    if (k == j) return 0;
+    return parse_int(sub_str(tail, j, k - j));
+}
+
+bool IsDig(char c) {
+    return c == '0' || c == '1' || c == '2' || c == '3' || c == '4' ||
+           c == '5' || c == '6' || c == '7' || c == '8' || c == '9';
+}
+
+string Reason(int status) {
+    if (status == 200) return "OK";
+    if (status == 404) return "Not Found";
+    if (status == 400) return "Bad Request";
+    return "Error";
+}
+
+string Render(Response r) {
+    string head = "HTTP/1.0 ";
+    head = head + format("%s", r.Status);
+    head = head + " ";
+    head = head + Reason(r.Status);
+    head = head + "\r\nContent-Type: text/html\r\nContent-Length: ";
+    head = head + format("%s", str_len(r.Body));
+    head = head + "\r\nConnection: close\r\n\r\n";
+    return head + r.Body;
+}
+
+Response Handle(Request req) {
+    if (req.Method == "GET" && req.Path == "/") {
+        return new Response(200, "<h1>HP-HL HTTP server</h1>\n");
+    }
+    if (req.Method == "GET" && req.Path == "/health") {
+        return new Response(200, "OK\n");
+    }
+    if (req.Method == "GET" && req.Path == "/version") {
+        return new Response(200, "HP-HL v0.95.0\n");
+    }
+    if (req.Method == "GET" && req.Path == "/json") {
+        return new Response(200, "{\"status\":\"ok\"}\n");
+    }
+    if (req.Method == "POST" && req.Path == "/echo") {
+        return new Response(200, req.Body);
+    }
+    return new Response(404, "Not Found\n");
+}
+
+// Handles incoming client connection; returns true on success
+bool ServeOnce(int srv) {
+    int cli = accept(srv);
+    if (cli < 0) return false;
+    string head = ReadHeaders(cli);
+    if (str_len(head) == 0) {
+        close_socket(cli);
+        return false;
+    }
+    int hlen = index_of(head, "\r\n\r\n") + 4;
+    int clen = ContentLen(head);
+    string body = "";
+    int have = str_len(head) - hlen;
+    if (have > 0) {
+        body = sub_str(head, hlen, have);
+    }
+    while (str_len(body) < clen) {
+        string more = recv(cli, 4096);
+        if (str_len(more) == 0) break;
+        body = body + more;
+    }
+    Request req = ParseRequest(head, body);
+    Response resp = Handle(req);
+    send(cli, Render(resp));
+    close_socket(cli);
+    return true;
+}
+
+void RunServer(int port, int count) {
+    int srv = socket(2, 1, 0);
+    if (srv < 0) panic("server: socket falhou");
+    if (bind(srv, port) != 0) panic("server: bind falhou");
+    if (listen(srv, 5) != 0) panic("server: listen falhou");
+    int i = 0;
+    while (i < count) {
+        ServeOnce(srv);
+        i = i + 1;
+    }
+    close_socket(srv);
+}
+
+// Connects with retry logic for server startup; returns connected socket
+int ConnectRetry(string host, int port) {
+    int c = socket(2, 1, 0);
+    int tries = 0;
+    int rc = -1;
+    while (rc != 0 && tries < 500) {
+        rc = connect(c, host, port);
+        tries = tries + 1;
+    }
+    if (rc != 0) panic("client: connect falhou");
+    return c;
+}
+
+// HTTP client: raw GET request, returns entire response buffer
+string HttpGet(string host, int port, string path) {
+    int c = ConnectRetry(host, port);
+    send(c, "GET ");
+    send(c, path);
+    send(c, " HTTP/1.0\r\nHost: x\r\n\r\n");
+    string acc = "";
+    int n = 0;
+    while (n < 32) {
+        string chunk = recv(c, 4096);
+        if (str_len(chunk) == 0) break;
+        acc = acc + chunk;
+        n = n + 1;
+    }
+    close_socket(c);
+    return acc;
+}
+
+// HTTP client: raw POST request with payload body
+string HttpPost(string host, int port, string path, string body) {
+    int c = ConnectRetry(host, port);
+    send(c, "POST ");
+    send(c, path);
+    send(c, " HTTP/1.0\r\nHost: x\r\nContent-Length: ");
+    send(c, format("%s", str_len(body)));
+    send(c, "\r\n\r\n");
+    send(c, body);
+    string acc = "";
+    int n = 0;
+    while (n < 32) {
+        string chunk = recv(c, 4096);
+        if (str_len(chunk) == 0) break;
+        acc = acc + chunk;
+        n = n + 1;
+    }
+    close_socket(c);
+    return acc;
+}
+
+bool HasSub(string hay, string sub) {
+    return index_of(hay, sub) >= 0;
+}
+
+void Main() {
+    print("DBG main0\n");
+    int port = 18080;
+    spawn {
+        RunServer(port, 5);
+    }
+
+    string r1 = HttpGet("127.0.0.1", port, "/");
+    assert(HasSub(r1, "200 OK"));
+    assert(HasSub(r1, "HP-HL HTTP server"));
+
+    string r2 = HttpGet("127.0.0.1", port, "/health");
+    assert(HasSub(r2, "200 OK"));
+
+    string r3 = HttpGet("127.0.0.1", port, "/json");
+    assert(HasSub(r3, "{\"status\":\"ok\"}"));
+
+    string r4 = HttpPost("127.0.0.1", port, "/echo", "abc123");
+    assert(HasSub(r4, "200 OK"));
+    assert(HasSub(r4, "abc123"));
+
+    string r5 = HttpGet("127.0.0.1", port, "/missing");
+    assert(HasSub(r5, "404 Not Found"));
+
+    print("http server showcase OK\n");
+    exit_prog(0);
+}

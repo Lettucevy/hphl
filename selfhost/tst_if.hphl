@@ -1,0 +1,4 @@
+void Main() {
+    int v = 12;
+    if (v > 10) { println(v); }
+}

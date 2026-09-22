@@ -1,0 +1,16 @@
+// foreach_untyped.hphl - `foreach (x in xs)` infere o tipo do elemento.
+void Main() {
+    int[3] arr = {10, 20, 30};
+    int total = 0;
+    foreach (x in arr) {
+        total = total + x;
+    }
+    println(toString(total));
+    int[4] arr2 = {1, 2, 3, 4};
+    int s2 = 0;
+    foreach (y in arr2) {
+        s2 = s2 + y;
+    }
+    println(toString(s2));
+    println("foreach-untyped-done");
+}

@@ -1,0 +1,7 @@
+// erro_dep_cycle.hphl - negativo: dependências cíclicas (A→B, B→A) falham
+import CycA;
+import CycB;
+
+void Main() {
+    print("nunca\n");
+}

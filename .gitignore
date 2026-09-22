@@ -1,0 +1,121 @@
+# Build do compilador
+compiler/hphlc.exe
+compiler/bin/
+bin/
+compiler/*.o
+compiler/*.exe
+*.vsix
+node_modules/
+
+# Objetos por subsistema (build/ espelha src/)
+compiler/build/
+
+# Artefatos gerados pelo hphlc (assembly e executáveis)
+*.s
+*.tmp.s
+*.exe
+*.o
+
+# LLVM IR gerado pelo backend (--backend ir/llvm)
+*.ll
+
+# Saída da suite de testes
+tests/_out/
+tests/_out_ir/
+tests/_out_llvm/
+tests/_out_bench/
+tests/_out_bench_m11/
+tests/_out_benchcmp/
+tests/_out_cross/
+tests/_out_llvm2/
+
+# IDE (.NET)
+ide/bin/
+ide/obj/
+
+# Editor standalone da engine (.NET WinForms)
+ProkionEngine/tools/LevelEditor/bin/
+ProkionEngine/tools/LevelEditor/obj/
+*.dll
+*.pdb
+*.lib
+*.a
+
+# Fontes temporárias de debug
+examples/tmp*.hphl
+tests/tmp*.hphl
+
+# Binários antigos commitados por engano (manter só hphlc.exe do branch atual)
+hphlc_old.exe
+hphlc_test_old.exe
+hphlc_v042.exe
+demo.exe
+sh_main.exe
+sh_test.exe
+
+# Helper debug scripts (Python + partes de texto)
+__pycache__/
+*.pyc
+compiler/build.ps1
+compiler/debug_*.py
+compiler/debug_*.cpp
+compiler/parte*.txt
+compiler/patch_*.py
+compiler/print_*.py
+compiler/snippet.txt
+compiler/stress_*.cpp
+compiler/stress_*.py
+compiler/test_*.cpp
+compiler/test_*.py
+compiler/tests.log
+compiler/vectors.txt
+compiler/src/*.bak
+
+# Selfhost debug
+selfhost_demo*.s
+selfhost_dump.txt
+session-ses_*.md
+
+# Saídas dos testes (builds locais, binários antigos)
+tests/_*.exe
+tests/_*.o
+tests/_*.ll
+tests/_out*/
+tests/_out_bench*/
+tests/_out_bench_m11*/
+tests/_out_benchcmp*/
+tests/_out_cross*/
+tests/_out_ir*/
+tests/_out_llvm*/
+tests/_out_llvm2*/
+tests/dbg*.exe
+tests/vg*.exe
+tests/vs*.exe
+tests/ctz.exe
+tests/ctzir.exe
+
+# IDE e IDE debug
+ide/bin/
+ide/obj/
+
+# Selfhost (manter fontes; binários de build são cobertos por *.exe)
+selfhost_demo*.s
+selfhost_dump.txt
+# Cache de build do selfhost (e2e_main/sh2/stage3 + amálgama regenerado)
+selfhost/_out/
+
+# Workspace do opencode (plans locais)
+.opencode/
+
+# Documentos internos de transição pré-release
+RELEASE_BRAINSTORM_AND_ROADMAP.md
+POST_RELEASE_ROADMAP.md
+DOCSLOCAIS/
+docs/DOCSLOCAIS/
+
+# Distribuição e pacotes gerados
+dist/
+*.png
+!assets/*.png
+!assets/*.jpg
+!editors/vscode/icon.png

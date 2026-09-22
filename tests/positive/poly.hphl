@@ -1,0 +1,37 @@
+// poly.hphl — M10 (v0.44): subsumption + dispatch virtual + base.Metodo()
+class Character {
+    public int hp;
+    public void Falar() { print("..."); }
+    public void Dizer() { print("sou character"); }
+    public int Golpe() { return 5; }
+}
+class Enemy : Character {
+    public int forca;
+    public void Dizer() { print("sou enemy"); }
+    public int Golpe() { return base.Golpe() + forca; }
+}
+void Afirma(Character c) {
+    c.Dizer();
+}
+void Main() {
+    Enemy e = new Enemy();
+    e.hp = 100;
+    e.forca = 3;
+
+    // campos: base + derivada em offsets distintos
+    print(e.hp);
+    print("\n");
+
+    // override com base.Metodo()
+    print(e.Golpe());
+    print("\n"); // 8 = 5 + 3
+
+    // subsumption + dispatch virtual
+    Afirma(e);           // "sou enemy" (override vence)
+    Character c = e;
+    c.Dizer();           // "sou enemy"
+    print("\n");
+    print(c.Golpe());    // 8 (virtual)
+    print("\n");
+    print("done");
+}

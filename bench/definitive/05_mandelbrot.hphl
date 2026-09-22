@@ -1,0 +1,45 @@
+void Main() {
+    int width = 1200;
+    int height = 1200;
+    int maxIter = 200;
+
+    int totalIter = 0;
+
+    float<64> x0 = -2.0;
+    float<64> x1 = 0.5;
+    float<64> y0 = -1.25;
+    float<64> y1 = 1.25;
+
+    float<64> dx = (x1 - x0) / (width * 1.0);
+    float<64> dy = (y1 - y0) / (height * 1.0);
+
+    for (int py = 0; py < height; py++) {
+        float<64> fpy = py * 1.0;
+        float<64> ci = y0 + fpy * dy;
+        for (int px = 0; px < width; px++) {
+            float<64> fpx = px * 1.0;
+            float<64> cr = x0 + fpx * dx;
+
+            float<64> zr = 0.0;
+            float<64> zi = 0.0;
+            int iter = 0;
+
+            while (iter < maxIter) {
+                float<64> zr2 = zr * zr;
+                float<64> zi2 = zi * zi;
+                if (zr2 + zi2 > 4.0) {
+                    break;
+                }
+                float<64> newZi = 2.0 * zr * zi + ci;
+                zr = zr2 - zi2 + cr;
+                zi = newZi;
+                iter = iter + 1;
+            }
+            totalIter = totalIter + iter;
+        }
+    }
+
+    print("Checksum: ");
+    print(totalIter);
+    print("\n");
+}

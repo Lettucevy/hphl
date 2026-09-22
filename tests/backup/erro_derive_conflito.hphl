@@ -1,0 +1,14 @@
+// erro: método customizado conflita com método gerado pelo derive (v0.25.0)
+derive Equatable
+class Item {
+    int id;
+
+    bool Equals(Item other) {
+        return this.id == other.id;
+    }
+}
+
+void Main() {
+    Item i = new Item();
+    print("nunca");
+}

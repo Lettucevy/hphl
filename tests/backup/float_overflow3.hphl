@@ -1,0 +1,8 @@
+void Main() {
+    // Test float<32, checked> - normal operations should work
+    float<32, checked> x = 1.5;
+    float<32, checked> y = 2.5;
+    float<32, checked> z = x * y; // 3.75
+    print(z);
+    print("\n");
+}

@@ -1,0 +1,14 @@
+// erro_arena_uaf.hphl — acesso a objeto 'arena' depois de arena_reset():
+// o bloco inteiro foi devolvido e o próximo alloc recicla
+// (M11.9 Arena resetável + USE AFTER FREE, spec §3)
+class P {
+    public int v;
+}
+
+void Main() {
+    arena P p;
+    p.v = 1;
+    println(p.v);
+    arena_reset();
+    println(p.v);
+}

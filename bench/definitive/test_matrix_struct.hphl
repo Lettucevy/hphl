@@ -1,0 +1,52 @@
+struct Mat4 {
+    public float<64> m00; public float<64> m01; public float<64> m02; public float<64> m03;
+    public float<64> m10; public float<64> m11; public float<64> m12; public float<64> m13;
+    public float<64> m20; public float<64> m21; public float<64> m22; public float<64> m23;
+    public float<64> m30; public float<64> m31; public float<64> m32; public float<64> m33;
+
+    public Mat4() {
+        this.m00 = 1.0; this.m01 = 0.0; this.m02 = 0.0; this.m03 = 0.0;
+        this.m10 = 0.0; this.m11 = 1.0; this.m12 = 0.0; this.m13 = 0.0;
+        this.m20 = 0.0; this.m21 = 0.0; this.m22 = 1.0; this.m23 = 0.0;
+        this.m30 = 0.0; this.m31 = 0.0; this.m32 = 0.0; this.m33 = 1.0;
+    }
+}
+
+void Main() {
+    int iters = 2000000;
+    float<64> sumX = 0.0;
+    float<64> sumY = 0.0;
+    float<64> sumZ = 0.0;
+
+    // Matriz combinada (Translation + RotationZ) com valores diretos em variaveis/struct flat
+    float<64> rad = 0.7853981633974483;
+    float<64> c = cos(rad);
+    float<64> s = sin(rad);
+
+    float<64> m00 = c; float<64> m01 = 0.0 - s; float<64> m02 = 0.0; float<64> m03 = 10.0;
+    float<64> m10 = s; float<64> m11 = c;       float<64> m12 = 0.0; float<64> m13 = 20.0;
+    float<64> m20 = 0.0; float<64> m21 = 0.0;   float<64> m22 = 1.0; float<64> m23 = 30.0;
+
+    float<64> vx = 1.0;
+    float<64> vy = 2.0;
+    float<64> vz = 3.0;
+
+    for (int i = 0; i < iters; i++) {
+        float<64> nx = m00*vx + m01*vy + m02*vz + m03;
+        float<64> ny = m10*vx + m11*vy + m12*vz + m13;
+        float<64> nz = m20*vx + m21*vy + m22*vz + m23;
+
+        sumX = sumX + nx;
+        sumY = sumY + ny;
+        sumZ = sumZ + nz;
+
+        vx = nx * 0.0001 + 1.0;
+        vy = ny * 0.0001 + 2.0;
+        vz = nz * 0.0001 + 3.0;
+    }
+
+    float<64> total = sumX + sumY + sumZ;
+    print("Checksum: ");
+    print(total);
+    print("\n");
+}

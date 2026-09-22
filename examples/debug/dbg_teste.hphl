@@ -1,0 +1,38 @@
+// dbg_teste.hphl: Program to validate debugger instrumentation
+int GLOBAL = 42;
+string MSG = "hello";
+
+int Fator(int n) {
+	int r = 1;
+	for (int i = 2; i <= n; i++) {
+		r = r * i;
+	}
+	return r;
+}
+
+double Calc(double a, double b) {
+	double x = a * 2;
+	double y = b + 1.5;
+	return x + y;
+}
+
+void Main() {
+	int num = 5;
+	int fat = Fator(num);
+	double d = Calc(1.5, 2.5);
+	print("fat(5) = ");
+	print(fat);
+	print("\n");
+	print("calc = ");
+	print(d);
+	print("\n");
+	int[3] arr = {10, 20, 30};
+	print("arr[1] = ");
+	print(arr[1]);
+	print("\n");
+	print("global = ");
+	print(GLOBAL);
+	print("\n");
+	print(MSG);
+	print("\n");
+}

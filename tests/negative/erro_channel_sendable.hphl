@@ -1,0 +1,13 @@
+// erro_channel_sendable.hphl — canal transportando classe não-sendable
+// entre threads é proibido (M11.3 Channel sendable, spec §3/§10)
+class Msg {
+    public int id;
+}
+
+void Main() {
+    channel<Msg> c = new channel<Msg>(4);
+    spawn {
+        c.Send(new Msg());
+    }
+    println(c.Receive().id);
+}

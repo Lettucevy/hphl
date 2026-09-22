@@ -1,0 +1,437 @@
+// SpaceShooter.hphl: Space arcade game demonstrating language and engine features.
+// Playable mode or automated demo playback (default: 900 frames + metrics).
+import Win32;
+import Vec2;
+import CharBuffer;
+import Input;
+import Collider;
+import Particles;
+
+int GW;
+int GH;
+Vec2 shipPos;
+float<64>[128] bx;
+float<64>[128] by;
+float<64>[128] bvy;
+bool[128] bfoe;
+int nShots;
+float<64>[64] ex;
+float<64>[64] ey;
+float<64>[64] evx;
+int[64] efire;
+int nFoes;
+float<64>[45] stx;
+float<64>[45] sty;
+float<64>[45] sts;
+int gScore;
+int gKills;
+int gFired;
+int gLives;
+int gCooldown;
+int gSpawnT;
+int gShake;
+int gFrame;
+int gPeakParts;
+bool gSound;
+int gOutH;
+
+void AddShot(float<64> x, float<64> y, float<64> vy, bool foe) {
+    if (nShots >= 128) return;
+    bx[nShots] = x;
+    by[nShots] = y;
+    bvy[nShots] = vy;
+    bfoe[nShots] = foe;
+    nShots = nShots + 1;
+}
+
+void KillShot(int i) {
+    nShots = nShots - 1;
+    bx[i] = bx[nShots];
+    by[i] = by[nShots];
+    bvy[i] = bvy[nShots];
+    bfoe[i] = bfoe[nShots];
+}
+
+void AddFoe(float<64> x, float<64> y) {
+    if (nFoes >= 64) return;
+    float<64> vx = 0.2;
+    if (random_int(0, 1) == 0) vx = 0.0 - vx;
+    ex[nFoes] = x;
+    ey[nFoes] = y;
+    evx[nFoes] = vx;
+    efire[nFoes] = random_int(40, 120);
+    nFoes = nFoes + 1;
+}
+
+void KillFoe(int i) {
+    nFoes = nFoes - 1;
+    ex[i] = ex[nFoes];
+    ey[i] = ey[nFoes];
+    evx[i] = evx[nFoes];
+    efire[i] = efire[nFoes];
+}
+
+void Explode(float<64> x, float<64> y, bool big) {
+    int n = 8;
+    if (big) n = 16;
+    FxBurst(x, y, n, 2);
+    gShake = 5;
+    if (gSound) Tone(180, 40);
+}
+
+void GameInit(int w, int h, bool snd, int handle) {
+    GW = w;
+    GH = h;
+    gSound = snd;
+    gOutH = handle;
+    BufInit(w, h);
+    shipPos = new Vec2(w / 2.0, h - 3.0);
+    nShots = 0;
+    nFoes = 0;
+    int i = 0;
+    while (i < 45) {
+        stx[i] = random_int(0, w - 1);
+        sty[i] = random_int(0, h - 1);
+        sts[i] = random_int(1, 3) / 3.0;
+        i = i + 1;
+    }
+    gScore = 0;
+    gKills = 0;
+    gFired = 0;
+    gLives = 3;
+    gCooldown = 0;
+    gSpawnT = 0;
+    gShake = 0;
+    gFrame = 0;
+    gPeakParts = 0;
+}
+
+void UpdateShip(bool demo, GameInput input) {
+    if (demo) {
+        float<64> tx = shipPos.X;
+        bool found = false;
+        int i = 0;
+        while (i < nFoes) {
+            if (!found) {
+                tx = ex[i];
+                found = true;
+            } else {
+                float<64> d0 = tx - shipPos.X;
+                if (d0 < 0.0) d0 = 0.0 - d0;
+                float<64> d1 = ex[i] - shipPos.X;
+                if (d1 < 0.0) d1 = 0.0 - d1;
+                if (d1 < d0) tx = ex[i];
+            }
+            i = i + 1;
+        }
+        if (found) {
+            if (tx < shipPos.X - 0.4) shipPos = shipPos.Sub(new Vec2(0.7, 0.0));
+            if (tx > shipPos.X + 0.4) shipPos = shipPos.Add(new Vec2(0.7, 0.0));
+        }
+        if (gCooldown <= 0) {
+            AddShot(shipPos.X, shipPos.Y - 1.0, -1.2, false);
+            gFired = gFired + 1;
+            gCooldown = 9;
+        }
+    } else {
+        if (input.Left()) shipPos = shipPos.Sub(new Vec2(0.7, 0.0));
+        if (input.Right()) shipPos = shipPos.Add(new Vec2(0.7, 0.0));
+        if (input.Fire()) {
+            if (gCooldown <= 0) {
+                AddShot(shipPos.X, shipPos.Y - 1.0, -1.2, false);
+                gFired = gFired + 1;
+                gCooldown = 9;
+                if (gSound) Tone(880, 20);
+            }
+        }
+    }
+    shipPos = new Vec2(ClampF(shipPos.X, 2.0, GW - 3.0), GH - 3.0);
+    if (gCooldown > 0) gCooldown = gCooldown - 1;
+}
+
+void UpdateShots() {
+    int i = 0;
+    while (i < nShots) {
+        by[i] = by[i] + bvy[i];
+        if (by[i] < 1.0) {
+            KillShot(i);
+        } else {
+            if (by[i] >= GH - 1.0) {
+                KillShot(i);
+            } else {
+                i = i + 1;
+            }
+        }
+    }
+}
+
+void UpdateFoes() {
+    gSpawnT = gSpawnT - 1;
+    if (gSpawnT <= 0) {
+        AddFoe(random_int(3, GW - 4), 2.0);
+        int rate = 70 - gFrame / 30;
+        if (rate < 25) rate = 25;
+        gSpawnT = rate;
+    }
+    int i = 0;
+    while (i < nFoes) {
+        ex[i] = ex[i] + evx[i];
+        ey[i] = ey[i] + 0.25;
+        if (ex[i] < 2.0) {
+            ex[i] = 2.0;
+            evx[i] = 0.0 - evx[i];
+        }
+        if (ex[i] > GW - 3.0) {
+            ex[i] = GW - 3.0;
+            evx[i] = 0.0 - evx[i];
+        }
+        efire[i] = efire[i] - 1;
+        if (efire[i] <= 0) {
+            AddShot(ex[i], ey[i] + 1.0, 0.6, true);
+            efire[i] = random_int(60, 160);
+        }
+        if (ey[i] >= GH - 3.0) {
+            KillFoe(i);
+            gLives = gLives - 1;
+            gShake = 8;
+            Explode(ex[i], GH - 3.0, true);
+        } else {
+            i = i + 1;
+        }
+    }
+}
+
+void Collide() {
+    int i = 0;
+    while (i < nShots) {
+        if (bfoe[i]) {
+            if (AabbOverlap(bx[i], by[i], 1.0, 1.0, shipPos.X - 1.0, shipPos.Y, 3.0, 1.0)) {
+                KillShot(i);
+                gLives = gLives - 1;
+                gShake = 8;
+                Explode(shipPos.X, shipPos.Y, true);
+            } else {
+                i = i + 1;
+            }
+        } else {
+            bool hit = false;
+            int j = 0;
+            while (j < nFoes) {
+                if (AabbOverlap(bx[i], by[i], 1.0, 1.0, ex[j] - 1.0, ey[j], 3.0, 1.0)) {
+                    Explode(ex[j], ey[j], false);
+                    KillFoe(j);
+                    hit = true;
+                    gKills = gKills + 1;
+                    gScore = gScore + 100;
+                    j = nFoes;
+                } else {
+                    j = j + 1;
+                }
+            }
+            if (hit) {
+                KillShot(i);
+            } else {
+                i = i + 1;
+            }
+        }
+    }
+    int k = 0;
+    while (k < nFoes) {
+        if (AabbOverlap(ex[k] - 1.0, ey[k], 3.0, 1.0, shipPos.X - 1.0, shipPos.Y, 3.0, 1.0)) {
+            Explode(ex[k], ey[k], true);
+            KillFoe(k);
+            gLives = gLives - 1;
+            gShake = 8;
+        } else {
+            k = k + 1;
+        }
+    }
+}
+
+void UpdateStars() {
+    int i = 0;
+    while (i < 45) {
+        sty[i] = sty[i] + sts[i] * 0.15;
+        if (sty[i] >= GH - 1.0) {
+            sty[i] = 1.0;
+            stx[i] = random_int(1, GW - 2);
+        }
+        i = i + 1;
+    }
+}
+
+void Draw(int fps) {
+    BufClear();
+    int ox = 0;
+    int oy = 0;
+    if (gShake > 0) {
+        ox = random_int(-1, 1);
+        oy = random_int(-1, 1);
+        gShake = gShake - 1;
+    }
+    int i = 0;
+    while (i < 45) {
+        BufSet((int)stx[i] + ox, (int)sty[i] + oy, ".");
+        i = i + 1;
+    }
+    BufFrame(ox, 1 + oy, GW, GH - 1);
+    BufText(2, 0, "SCORE " + gScore + "  VIDAS " + gLives + "  FPS " + fps + "  F" + gFrame);
+    int sx = (int)(shipPos.X + 0.5);
+    int sy = (int)(shipPos.Y + 0.5);
+    BufSet(sx - 1, sy + oy, "<");
+    BufSet(sx, sy + oy, "^");
+    BufSet(sx + 1, sy + oy, ">");
+    int j = 0;
+    while (j < nShots) {
+        string gl = "|";
+        if (bfoe[j]) gl = "!";
+        BufSet((int)(bx[j] + 0.5) + ox, (int)(by[j] + 0.5) + oy, gl);
+        j = j + 1;
+    }
+    int k = 0;
+    while (k < nFoes) {
+        int fex = (int)(ex[k] + 0.5);
+        int fey = (int)(ey[k] + 0.5);
+        BufSet(fex - 1 + ox, fey + oy, "W");
+        BufSet(fex + ox, fey + oy, "V");
+        BufSet(fex + 1 + ox, fey + oy, "W");
+        k = k + 1;
+    }
+    FxDraw(ox, oy);
+}
+
+void Present() {
+    ConsoleHome(gOutH);
+    print(BufRender());
+}
+
+bool GameDead() {
+    return gLives <= 0;
+}
+
+void RunDemo() {
+    int handle = StdOutHandle();
+    string show = env_var("SPACE_SHOW");
+    bool silent = false;
+    if (show != null) {
+        if (show == "0") silent = true;
+    }
+    if (!silent) ConsoleClear();
+    int w = 76;
+    string ws = env_var("SPACE_W");
+    if (ws != null) w = parse_int(ws);
+    if (w < 40) w = 76;
+    if (w > 90) w = 90;
+    int h = 23;
+    string hs = env_var("SPACE_H");
+    if (hs != null) h = parse_int(hs);
+    if (h < 15) h = 23;
+    if (h > 24) h = 24;
+    GameInit(w, h, false, handle);
+    GameInput input = new GameInput();
+    int maxFrames = 900;
+    int t0 = now_us();
+    int lastT = t0;
+    int fps = 60;
+    int maxFrame = 0;
+    while (gFrame < maxFrames) {
+        if (GameDead()) {
+            gFrame = gFrame + 1;
+            break;
+        }
+        int f0 = now_us();
+        UpdateShip(true, input);
+        UpdateShots();
+        UpdateFoes();
+        Collide();
+        UpdateStars();
+        FxUpdate();
+        if (FxCount() > gPeakParts) gPeakParts = FxCount();
+        Draw(fps);
+        if (!silent) {
+            if (gFrame % 2 == 0) Present();
+        }
+        int f1 = now_us();
+        int el = (f1 - f0) / 1000;
+        if (el < 16 && !silent) sleep_ms(16 - el);
+        int now = now_us();
+        int dt = now - lastT;
+        lastT = now;
+        if (dt > 0) fps = 1000000 / dt;
+        if (dt > maxFrame) maxFrame = dt;
+        if (gFrame % 150 == 0) gc_pressure();
+        gFrame = gFrame + 1;
+    }
+    int t1 = now_us();
+    int totalMs = (t1 - t0) / 1000;
+    int avgUs = (t1 - t0) / gFrame;
+    println("");
+    println("== DEMO REPORT ==");
+    print("frames="); println(toString(gFrame));
+    print("score="); println(toString(gScore));
+    print("kills="); println(toString(gKills));
+    print("shots="); println(toString(gFired));
+    print("total_ms="); println(toString(totalMs));
+    print("avg_frame_us="); println(toString(avgUs));
+    print("max_frame_us="); println(toString(maxFrame));
+    print("peak_particles="); println(toString(gPeakParts));
+    print("lives_left="); println(toString(gLives));
+    print("gc_collections="); println(toString(gc_collections()));
+    print("gc_freed="); println(toString(gc_freed()));
+    print("gc_max_pause_us="); println(toString(gc_max_pause_ns() / 1000));
+    println("DEMO OK");
+    if (!silent) {
+        println("Pressione ENTER para sair...");
+        string done = read_line();
+    }
+}
+
+void RunPlay() {
+    int handle = StdOutHandle();
+    ConsoleClear();
+    GameInit(76, 23, true, handle);
+    GameInput input = new GameInput();
+    int lastT = now_us();
+    int fps = 60;
+    bool quit = false;
+    while (!quit) {
+        if (GameDead()) quit = true;
+        if (input.Quit()) quit = true;
+        int f0 = now_us();
+        UpdateShip(false, input);
+        UpdateShots();
+        UpdateFoes();
+        Collide();
+        UpdateStars();
+        FxUpdate();
+        Draw(fps);
+        Present();
+        int f1 = now_us();
+        int el = (f1 - f0) / 1000;
+        if (el < 16) sleep_ms(16 - el);
+        int now = now_us();
+        int dt = now - lastT;
+        lastT = now;
+        if (dt > 0) fps = 1000000 / dt;
+        gFrame = gFrame + 1;
+    }
+    println("");
+    println("== GAME OVER ==");
+    print("score="); println(toString(gScore));
+    print("kills="); println(toString(gKills));
+    println("Pressione ENTER para sair...");
+    string done = read_line();
+}
+
+void Main() {
+    string mode = env_var("SPACE_MODE");
+    bool play = false;
+    if (mode != null) {
+        if (mode == "play") play = true;
+    }
+    if (play) {
+        RunPlay();
+    } else {
+        RunDemo();
+    }
+}

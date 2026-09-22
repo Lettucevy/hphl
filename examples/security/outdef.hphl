@@ -1,0 +1,63 @@
+// ===========================================================================
+// outdef.hphl: Definite assignment verification for `out` parameters
+// ===========================================================================
+// Ler um parâmetro 'out' antes de atribuí-lo em todos os caminhos é erro;
+// este exemplo exercita os padrões válidos: atribuição direta, composta,
+// encadeamento (passar adiante como `out`), if/else nos dois braços e
+// try/catch com atribuição nos dois caminhos.
+
+public void Calcular(out int resultado) {
+  resultado = 10;
+  resultado += 5; // composta: lê (já atribuído) e escreve
+}
+
+public void Encadeia(out int r1, out int r2) {
+  Calcular(out r1); // repassa o 'out': não lê, marca como atribuído
+  r2 = r1 + 1;      // leitura após atribuição definida
+}
+
+public int Ler(out int r) {
+  r = 42;
+  return r; // leitura após atribuição
+}
+
+public void Dual(out int r) {
+  int t = 1;
+  if (t > 0) {
+    r = 5;
+  } else {
+    r = 9;
+  }
+  print(r - 4); // ambos os caminhos atribuíram: leitura garantida → 1
+}
+
+public class LoadErro {}
+
+public void ComTry(out int r) {
+  try {
+    r = 7;
+  } catch (LoadErro e) {
+    r = 3;
+  }
+  print(r); // try e catch atribuíram → leitura garantida → 7
+}
+
+public void Main() {
+  int a = 0;
+  int b = 0;
+  Encadeia(out a, out b);
+  print(a); // 15
+  print(b); // 16
+
+  int c = 0;
+  Ler(out c);
+  print(c); // 42
+
+  int d = 0;
+  Dual(out d);
+  print(d); // 5
+
+  int e = 0;
+  ComTry(out e);
+  print(e); // 7
+}

@@ -1,0 +1,8 @@
+// erro: map com política 'shared' (proibida — só 'stack' ou 'heap')
+shared map<string, int> m;
+
+Main() {
+  m["a"] = 1;
+  print(m.Length);
+  print("\n");
+}

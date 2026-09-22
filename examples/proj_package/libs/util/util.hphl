@@ -1,0 +1,3 @@
+module Util;
+
+int Dobro(int x) { return x * 2; }

@@ -1,0 +1,66 @@
+// pool_base.hphl - `pool`/`base` contextuais: valem como identificadores
+// fora das posicoes de keyword (policy `pool T x`, chamada `base.M()`).
+class Box {
+    int pool;
+    Box(int pool) {
+        this.pool = pool;
+    }
+    int get() {
+        return this.pool;
+    }
+}
+
+class Base {
+    public int v;
+    Base() {
+        v = 1;
+    }
+    public int get() {
+        return v;
+    }
+}
+
+class Der : Base {
+    Der() {
+        v = 2;
+    }
+    public int getBase() {
+        return base.get();
+    }
+}
+
+int pool = 40;
+int base = 2;
+
+int use_pool(int pool) {
+    return pool + 1;
+}
+
+void Main() {
+    println(toString(pool));
+    pool = pool + 2;
+    println(toString(pool));
+    println(toString(use_pool(10)));
+    println(toString(base * 3));
+    base = base + 1;
+    println(toString(base));
+    Box b = new Box(7);
+    println(toString(b.get()));
+    println(toString(b.pool));
+    Box pool = new Box(3);
+    println(toString(pool.get()));
+    int total = 0;
+    int[3] arr = {10, 20, 30};
+    foreach (var pool in arr) {
+        total = total + pool;
+    }
+    println(toString(total));
+    pool int pl = 6;
+    heap int hp = 7;
+    Der d = new Der();
+    println(toString(d.getBase()));
+    println(toString(pl + hp));
+    int base = 100;
+    println(toString(base + 1));
+    println("pool-base-done");
+}

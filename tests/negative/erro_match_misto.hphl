@@ -1,0 +1,11 @@
+// erro: braços do match não podem misturar `=> expr` e bloco `{ ... }`
+enum E { A, B }
+
+public int Main() {
+  E e = E.A;
+  int x = match (e) {
+    A => 1,
+    _ => { print("bloco"); },
+  };
+  return x;
+}

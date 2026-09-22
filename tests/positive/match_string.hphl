@@ -1,0 +1,38 @@
+// match_string.hphl - match com padroes string (literais + '_' + guardas).
+// Sujeito string; comparacao por conteudo (hphl_str_eq).
+
+int code(string c) {
+    return match (c) {
+        "A" => 1,
+        "B" => 2,
+        "HP" => 10,
+        "" => 0,
+        _ => -1,
+    };
+}
+
+string label(string c) {
+    return match (c) {
+        "x" when true => "ex",
+        "y" => "why",
+        _ => "other",
+    };
+}
+
+void Main() {
+    println(toString(code("A")));
+    println(toString(code("B")));
+    println(toString(code("HP")));
+    println(toString(code("")));
+    println(toString(code("Z")));
+    println(label("x"));
+    println(label("y"));
+    println(label("q"));
+    string s = "AMMO";
+    match (s) {
+        "HP" => { println("hp"); },
+        "AMMO" => { println("ammo"); },
+        _ => { println("other"); },
+    }
+    println("match-string-done");
+}

@@ -1,0 +1,37 @@
+/*
+   Cookbook 05: event loop
+   Cooperative event loop: poll a set of file descriptors and dispatch events.
+   Simplified for illustration — real loop uses epoll/kqueue/IOCP.
+*/
+module cookbook.eventloop;
+
+import std.collections;
+
+interface Handler {
+    void OnEvent(int fd, int event);
+}
+
+class Loop {
+    private list<Handler> handlers = new list<Handler>();
+    public void Add(Handler h) { handlers.Add(h); }
+    public void Run() {
+        bool running = true;
+        while (running) {
+            // poll() / epoll_wait() with timeout
+            // for each ready fd, dispatch to its handler
+            // check for quit flag
+        }
+    }
+}
+
+class EchoHandler : Handler {
+    public void OnEvent(int fd, int event) {
+        // read from fd, write back
+    }
+}
+
+void Main() {
+    Loop loop = new Loop();
+    loop.Add(new EchoHandler());
+    loop.Run();
+}

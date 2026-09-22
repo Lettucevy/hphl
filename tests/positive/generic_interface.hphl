@@ -1,0 +1,44 @@
+// Item 2.8: monomorfização de interface genérica — método que usa o tipo
+// genérico (T) deve ser comparado com o tipo concreto (int/string) após
+// substituição. Antes, `T Get()` em `Repo<T>` não era instanciado como
+// `int Get()` em `Repo<int>`, quebrando a checagem de conformidade.
+
+interface Repo<T> {
+  T Get();
+  void Put(T v);
+}
+
+class IntRepo : Repo<int> {
+  int value;
+  IntRepo() { this.value = 0; }
+  int Get() { return this.value; }
+  void Put(int v) { this.value = v; }
+}
+
+interface Pair<A, B> {
+  A First();
+  B Second();
+}
+
+class IntStr : Pair<int, string> {
+  int x;
+  string y;
+  IntStr() { this.x = 0; this.y = ""; }
+  int First() { return this.x; }
+  string Second() { return this.y; }
+}
+
+void Main() {
+  var r = new IntRepo();
+  r.Put(42);
+  print("repo: ");
+  print(r.Get());
+  print("\n");
+
+  var p = new IntStr();
+  print("pair: ");
+  print(p.First());
+  print(" ");
+  print(p.Second());
+  print("\n");
+}

@@ -1,0 +1,18 @@
+// ModAlias.hphl - `depends on`, re-export and type aliases (Milestone 2)
+//   module ModAlias depends on ModCore;   → validated dependency
+//   public use MC.Counter;                → ModAlias.Counter re-exports ModCore.Counter
+//   using MyState = MC.State;             → local type alias to a module type
+
+module ModAlias depends on ModCore;
+
+import ModCore as MC;
+
+public use MC.Counter;
+
+using MyState = MC.State;
+
+public int viaReexport() {
+    MC.Counter c = new MC.Counter(10);
+    c.Bump();
+    return c.Get();
+}

@@ -1,0 +1,12 @@
+int soma_loop(int n) {
+    int soma = 0;
+    for (int i = 1; i <= n; i++) soma += i;
+    return soma;
+}
+
+void main() {
+    int n = 20000000;
+    print("soma = ");
+    print(soma_loop(n));
+    print("\n");
+}

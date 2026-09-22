@@ -1,0 +1,8 @@
+// dbg_teste8: Exception/panic handling in debugger (pauses instead of aborting)
+public void Main() {
+    int x = 100;
+    int y = 42;
+    int s = x + y;
+    print(s);
+    panic("boom teste");
+}

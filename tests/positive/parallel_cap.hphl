@@ -1,0 +1,24 @@
+// parallel_cap.hphl — captura POR VALOR em `parallel` (spec §10, v0.22.1):
+// cada parte do bloco ganha um env de capturas próprio (snapshot dos locais
+// no site do spawn, como em `spawn task { }`); a barreira no fim do bloco
+// garante que todas terminaram antes do print (saída determinística).
+atomic int soma = 0;
+
+void Main() {
+    int v1 = 100;
+    int v2 = 200;
+    parallel {
+        soma += v1;      // parte 1 captura v1
+        soma += v2;      // parte 2 captura v2
+        soma += v1 + v2; // parte 3 captura v1 e v2
+    }
+    // local modificado DEPOIS do bloco: o snapshot das partes não é afetado
+    v1 = 999;
+    print("capturado = ");
+    print(soma); // 100 + 200 + 300 = 600
+    print("\n");
+    print("local agora = ");
+    print(v1); // 999
+    print("\n");
+    print("done\n");
+}

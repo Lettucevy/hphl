@@ -1,0 +1,46 @@
+// Win32.hphl: Native platform FFI bindings without requiring external C code.
+// Text console: stdout handle, cursor-home positioning, and keyboard state.
+module Win32;
+
+extern "kernel32" int GetStdHandle(int n);
+extern "kernel32" int SetConsoleCursorPosition(int h, int coord);
+extern "kernel32" int Beep(int freq, int dur);
+extern "user32" int GetAsyncKeyState(int vKey);
+extern int system(string cmd);
+
+public int VkLeft() { return 37; }
+public int VkUp() { return 38; }
+public int VkRight() { return 39; }
+public int VkDown() { return 40; }
+public int VkSpace() { return 32; }
+public int VkEscape() { return 27; }
+public int VkKeyW() { return 87; }
+public int VkKeyA() { return 65; }
+public int VkKeyS() { return 83; }
+public int VkKeyD() { return 68; }
+public int VkKeyP() { return 80; }
+public int VkKeyQ() { return 81; }
+
+public int StdOutHandle() {
+    return GetStdHandle(-11);
+}
+
+public int PackXy(int x, int y) {
+    return x + y * 65536;
+}
+
+public void ConsoleHome(int h) {
+    SetConsoleCursorPosition(h, 0);
+}
+
+public void ConsoleClear() {
+    system("cls");
+}
+
+public bool KeyDown(int vk) {
+    return (GetAsyncKeyState(vk) & 0x8000) != 0;
+}
+
+public void Tone(int freq, int durMs) {
+    Beep(freq, durMs);
+}

@@ -1,0 +1,14 @@
+C:\Projetos\HPHL\bench\definitive\csharp\bin\Release\net10.0\Benchmark.exe
+c:\Projetos\HPHL\bench\definitive\csharp\bin\Release\net10.0\Benchmark.deps.json
+c:\Projetos\HPHL\bench\definitive\csharp\bin\Release\net10.0\Benchmark.runtimeconfig.json
+C:\Projetos\HPHL\bench\definitive\csharp\bin\Release\net10.0\Benchmark.dll
+C:\Projetos\HPHL\bench\definitive\csharp\bin\Release\net10.0\Benchmark.pdb
+C:\Projetos\HPHL\bench\definitive\csharp\obj\Release\net10.0\Benchmark.GeneratedMSBuildEditorConfig.editorconfig
+C:\Projetos\HPHL\bench\definitive\csharp\obj\Release\net10.0\Benchmark.AssemblyInfoInputs.cache
+C:\Projetos\HPHL\bench\definitive\csharp\obj\Release\net10.0\Benchmark.AssemblyInfo.cs
+C:\Projetos\HPHL\bench\definitive\csharp\obj\Release\net10.0\Benchmark.csproj.CoreCompileInputs.cache
+C:\Projetos\HPHL\bench\definitive\csharp\obj\Release\net10.0\Benchmark.dll
+C:\Projetos\HPHL\bench\definitive\csharp\obj\Release\net10.0\refint\Benchmark.dll
+C:\Projetos\HPHL\bench\definitive\csharp\obj\Release\net10.0\Benchmark.pdb
+c:\Projetos\HPHL\bench\definitive\csharp\obj\Release\net10.0\Benchmark.genruntimeconfig.cache
+c:\Projetos\HPHL\bench\definitive\csharp\obj\Release\net10.0\ref\Benchmark.dll

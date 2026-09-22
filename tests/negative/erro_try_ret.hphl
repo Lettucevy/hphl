@@ -1,0 +1,10 @@
+int f() {
+    Option<int> o = Some(5);
+    int v = o?;
+    return v;
+}
+
+void Main() {
+    print(f());
+    print("\n");
+}

@@ -1,0 +1,49 @@
+class Caixa<T> {
+  T valor;
+
+  Caixa(T v) {
+    this.valor = v;
+  }
+
+  T Obter() {
+    return this.valor;
+  }
+
+  void Definir(T v) {
+    this.valor = v;
+  }
+}
+
+T Primeiro<T>(T a, T b) {
+  return a;
+}
+
+int Somar<T>(T a, T b, int offset) where T : class {
+  return offset;
+}
+
+void Main() {
+  var c = new Caixa<int>(42);
+  c.Definir(99);
+  print("caixa int: ");
+  print(c.Obter());
+  print("\n");
+
+  var s = new Caixa<string>("oi");
+  print("caixa str: ");
+  print(s.Obter());
+  print("\n");
+
+  print("primeiro: ");
+  print(Primeiro<int>(7, 3));
+  print("\n");
+
+  var x = Primeiro(10, 20);
+  print("infer: ");
+  print(x);
+  print("\n");
+
+  print("soma: ");
+  print(Somar<string>("a", "b", 5));
+  print("\n");
+}

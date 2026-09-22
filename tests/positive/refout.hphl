@@ -1,0 +1,82 @@
+// ===========================================================================
+// exemplos/refout.hphl — ref/out/in + parâmetros opcionais (spec §5)
+// ===========================================================================
+
+public void Aumentar(ref int valor) {
+  valor += 1;
+}
+
+public void Dobrar(ref int valor) {
+  valor *= 2;
+}
+
+public void Calcular(out int resultado) {
+  resultado = 10;
+}
+
+public int Somar(int a, int b = 5, int c = 2) {
+  return a + b + c;
+}
+
+public void Mostrar(in int v) {
+  print(v);
+}
+
+public void Trocar(ref int a, ref int b) {
+  int tmp = a;
+  a = b;
+  b = tmp;
+}
+
+public class Mover {
+  public int x;
+  public int y;
+
+  public Mover(int x, int y = 0) {
+    this.x = x;
+    this.y = y;
+  }
+}
+
+public void Main() {
+  var n = 7;
+  print(n);
+  Aumentar(ref n);
+  print(n);              // 8
+  Dobrar(ref n);
+  print(n);              // 16
+
+  var r = 0;
+  Calcular(out r);
+  print(r);              // 10
+
+  var s = Somar(1);
+  print(s);              // 1+5+2
+  var s2 = Somar(1, 8);
+  print(s2);             // 1+8+2
+  var s3 = Somar(1, 8, 9);
+  print(s3);             // 1+8+9
+
+  var a2 = 1;
+  var b2 = 2;
+  Trocar(ref a2, ref b2);
+  print(a2);             // 2
+  print(b2);             // 1
+
+  Mostrar(42);           // in com rvalue (temporário)
+
+  var m1 = new Mover(10);
+  print(m1.x);           // 10
+  print(m1.y);           // 0
+  var m2 = new Mover(3, 4);
+  print(m2.y);           // 4
+  print(m1.x + m2.y);    // 14
+
+  Mostrar(n);            // in com lvalue (endereço direto) → 16
+  Aumentar(ref m1.y);    // ref em campo de classe
+  print(m1.y);           // 1
+
+  int[3] arr = {1, 2, 3};
+  Aumentar(ref arr[0]);  // ref em elemento de array
+  print(arr[0]);         // 2
+}

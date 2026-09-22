@@ -1,0 +1,366 @@
+// json_parser.hphl -- RC-8 (Sprint 5) + item 2.10 (v0.95): parser JSON real.
+// Tokenizer + recursive descent: objetos (aninhados), arrays, strings com
+// escapes (\" \\ \/ \b \f \n \r \t \uXXXX-ASCII), números, true/false/null.
+// Modelo: JsonValue com Kind (0=null 1=obj 2=arr 3=str 4=num 5=bool),
+// Text (str: conteúdo; num: lexema; bool: "1"/"0") e filhos (Kids; Keys
+// paralelas para objetos).
+//
+// Limites do showcase: escapes \uXXXX só até ASCII 127 (maiores dão panic);
+// \u0009/000A/000D mapeados para \t/\n/\r.
+module json_parser;
+
+class JsonValue {
+    public int Kind;
+    public string Text;
+    public list<string> Keys;
+    public list<JsonValue> Kids;
+    JsonValue(int k, string t) {
+        Kind = k;
+        Text = t;
+        Keys = new list<string>();
+        Kids = new list<JsonValue>();
+    }
+}
+
+// Tabela ASCII 32..126 para decodificar \uXXXX (sub_str(T, code-32, 1)).
+string AsciiTable() {
+    return " !\"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}~";
+}
+
+class JsonParser {
+    string Src;
+    int Pos;
+    int Len;
+    JsonParser(string s) {
+        Src = s;
+        Pos = 0;
+        Len = str_len(s);
+    }
+
+    bool Eof() { return Pos >= Len; }
+
+    char Peek() {
+        if (Pos >= Len) return '\0';
+        return Src[Pos];
+    }
+
+    char Next() {
+        char c = this.Peek();
+        Pos = Pos + 1;
+        return c;
+    }
+
+    bool IsWs(char c) {
+        return c == ' ' || c == '\t' || c == '\n' || c == '\r';
+    }
+
+    void SkipWs() {
+        while (!this.Eof() && this.IsWs(this.Peek())) Pos = Pos + 1;
+    }
+
+    void Expect(char c) {
+        this.SkipWs();
+        if (this.Eof() || this.Peek() != c) panic("JSON: esperado caractere");
+        Pos = Pos + 1;
+    }
+
+    bool IsDigit(char c) {
+        return c == '0' || c == '1' || c == '2' || c == '3' || c == '4' ||
+               c == '5' || c == '6' || c == '7' || c == '8' || c == '9';
+    }
+
+    int HexVal(char c) {
+        if (c == '0') return 0;
+        if (c == '1') return 1;
+        if (c == '2') return 2;
+        if (c == '3') return 3;
+        if (c == '4') return 4;
+        if (c == '5') return 5;
+        if (c == '6') return 6;
+        if (c == '7') return 7;
+        if (c == '8') return 8;
+        if (c == '9') return 9;
+        if (c == 'a' || c == 'A') return 10;
+        if (c == 'b' || c == 'B') return 11;
+        if (c == 'c' || c == 'C') return 12;
+        if (c == 'd' || c == 'D') return 13;
+        if (c == 'e' || c == 'E') return 14;
+        if (c == 'f' || c == 'F') return 15;
+        panic("JSON: digito hexadecimal invalido");
+        return 0;
+    }
+
+    // Consome '"..."' com escapes; devolve o conteúdo decodificado.
+    string ParseRawString() {
+        this.Expect('"');
+        string buf = "";
+        while (!this.Eof() && this.Peek() != '"') {
+            char c = this.Next();
+            if (c == '\\') {
+                if (this.Eof()) panic("JSON: escape truncado");
+                char e = this.Next();
+                if (e == '"') buf = buf + '"';
+                else if (e == '\\') buf = buf + '\\';
+                else if (e == '/') buf = buf + '/';
+                else if (e == 'b') buf = buf + '\b';
+                else if (e == 'f') buf = buf + '\f';
+                else if (e == 'n') buf = buf + '\n';
+                else if (e == 'r') buf = buf + '\r';
+                else if (e == 't') buf = buf + '\t';
+                else if (e == 'u') {
+                    int code = 0;
+                    int k = 0;
+                    while (k < 4) {
+                        if (this.Eof()) panic("JSON: \\u truncado");
+                        code = code * 16 + this.HexVal(this.Next());
+                        k = k + 1;
+                    }
+                    if (code == 9) buf = buf + '\t';
+                    else if (code == 10) buf = buf + '\n';
+                    else if (code == 13) buf = buf + '\r';
+                    else if (code >= 32 && code <= 126) {
+                        buf = buf + sub_str(AsciiTable(), code - 32, 1);
+                    } else {
+                        panic("JSON: \\u fora do ASCII nao suportado no showcase");
+                    }
+                } else {
+                    panic("JSON: escape invalido");
+                }
+            } else {
+                buf = buf + c;
+            }
+        }
+        this.Expect('"');
+        return buf;
+    }
+
+    // Consome o lexema numérico [-]d[.d][eE[+-]d]; devolve o texto.
+    string ParseRawNumber() {
+        this.SkipWs();
+        int start = Pos;
+        if (!this.Eof() && this.Peek() == '-') Pos = Pos + 1;
+        if (this.Eof() || !this.IsDigit(this.Peek())) panic("JSON: numero invalido");
+        while (!this.Eof() && this.IsDigit(this.Peek())) Pos = Pos + 1;
+        if (!this.Eof() && this.Peek() == '.') {
+            Pos = Pos + 1;
+            if (this.Eof() || !this.IsDigit(this.Peek())) panic("JSON: fracao invalida");
+            while (!this.Eof() && this.IsDigit(this.Peek())) Pos = Pos + 1;
+        }
+        if (!this.Eof() && (this.Peek() == 'e' || this.Peek() == 'E')) {
+            Pos = Pos + 1;
+            if (!this.Eof() && (this.Peek() == '+' || this.Peek() == '-')) Pos = Pos + 1;
+            if (this.Eof() || !this.IsDigit(this.Peek())) panic("JSON: expoente invalido");
+            while (!this.Eof() && this.IsDigit(this.Peek())) Pos = Pos + 1;
+        }
+        return sub_str(Src, start, Pos - start);
+    }
+
+    // Consome um literal exato ("true"/"false"/"null").
+    void ParseLiteral(string lit) {
+        this.SkipWs();
+        int i = 0;
+        while (i < str_len(lit)) {
+            if (this.Eof() || this.Peek() != lit[i]) panic("JSON: literal invalido");
+            Pos = Pos + 1;
+            i = i + 1;
+        }
+    }
+
+    JsonValue ParseValue() {
+        this.SkipWs();
+        if (this.Eof()) panic("JSON: valor esperado (fim inesperado)");
+        char c = this.Peek();
+        if (c == '{') return this.ParseObject();
+        if (c == '[') return this.ParseArray();
+        if (c == '"') return new JsonValue(3, this.ParseRawString());
+        if (c == 't') {
+            this.ParseLiteral("true");
+            return new JsonValue(5, "1");
+        }
+        if (c == 'f') {
+            this.ParseLiteral("false");
+            return new JsonValue(5, "0");
+        }
+        if (c == 'n') {
+            this.ParseLiteral("null");
+            return new JsonValue(0, "");
+        }
+        return new JsonValue(4, this.ParseRawNumber());
+    }
+
+    JsonValue ParseObject() {
+        this.Expect('{');
+        JsonValue obj = new JsonValue(1, "");
+        this.SkipWs();
+        if (!this.Eof() && this.Peek() == '}') {
+            Pos = Pos + 1;
+            return obj;
+        }
+        while (true) {
+            this.SkipWs();
+            string key = this.ParseRawString();
+            this.SkipWs();
+            this.Expect(':');
+            JsonValue val = this.ParseValue();
+            obj.Keys.Add(key);
+            obj.Kids.Add(val);
+            this.SkipWs();
+            if (this.Eof()) panic("JSON: objeto truncado");
+            char c = this.Next();
+            if (c == '}') break;
+            if (c != ',') panic("JSON: esperado ',' ou '}'");
+        }
+        return obj;
+    }
+
+    JsonValue ParseArray() {
+        this.Expect('[');
+        JsonValue arr = new JsonValue(2, "");
+        this.SkipWs();
+        if (!this.Eof() && this.Peek() == ']') {
+            Pos = Pos + 1;
+            return arr;
+        }
+        while (true) {
+            JsonValue val = this.ParseValue();
+            arr.Kids.Add(val);
+            this.SkipWs();
+            if (this.Eof()) panic("JSON: array truncado");
+            char c = this.Next();
+            if (c == ']') break;
+            if (c != ',') panic("JSON: esperado ',' ou ']'");
+        }
+        return arr;
+    }
+
+    JsonValue Parse() {
+        JsonValue v = this.ParseValue();
+        this.SkipWs();
+        if (!this.Eof()) panic("JSON: lixo apos o valor");
+        return v;
+    }
+}
+
+// ---- pretty printer ----
+
+void PrintIndent(int depth) {
+    int i = 0;
+    while (i < depth) {
+        print("  ");
+        i = i + 1;
+    }
+}
+
+void PrintEscaped(string s) {
+    int i = 0;
+    int n = str_len(s);
+    while (i < n) {
+        char c = s[i];
+        if (c == '"') print("\\\"");
+        else if (c == '\\') print("\\\\");
+        else if (c == '\n') print("\\n");
+        else if (c == '\r') print("\\r");
+        else if (c == '\t') print("\\t");
+        else if (c == '\b') print("\\b");
+        else if (c == '\f') print("\\f");
+        else print(c);
+        i = i + 1;
+    }
+}
+
+void PrintJson(JsonValue v, int depth) {
+    if (v.Kind == 0) {
+        print("null");
+    } else if (v.Kind == 1) {
+        int n = v.Keys.Length;
+        if (n == 0) {
+            print("{}");
+            return;
+        }
+        print("{\n");
+        int i = 0;
+        while (i < n) {
+            PrintIndent(depth + 1);
+            print("\"");
+            PrintEscaped(v.Keys[i]);
+            print("\": ");
+            PrintJson(v.Kids[i], depth + 1);
+            if (i + 1 < n) print(",");
+            print("\n");
+            i = i + 1;
+        }
+        PrintIndent(depth);
+        print("}");
+    } else if (v.Kind == 2) {
+        int n = v.Kids.Length;
+        if (n == 0) {
+            print("[]");
+            return;
+        }
+        print("[\n");
+        int i = 0;
+        while (i < n) {
+            PrintIndent(depth + 1);
+            PrintJson(v.Kids[i], depth + 1);
+            if (i + 1 < n) print(",");
+            print("\n");
+            i = i + 1;
+        }
+        PrintIndent(depth);
+        print("]");
+    } else if (v.Kind == 3) {
+        print("\"");
+        PrintEscaped(v.Text);
+        print("\"");
+    } else if (v.Kind == 4) {
+        print(v.Text);
+    } else if (v.Kind == 5) {
+        if (v.Text == "1") print("true");
+        else print("false");
+    }
+}
+
+void Main() {
+    print("JSON parser showcase (v0.95)\n\n");
+
+    string doc = "{\"name\": \"HP-HL\", \"version\": 95, \"stable\": true, \"broken\": false, \"nothing\": null, \"nums\": [1, -2.5, 3e2], \"nested\": {\"a\": [true, null], \"b\": {}}, \"esc\": \"A\\\"B\\\\C\\/D\\b\\f\\n\\r\\tE\\u0041\", \"empty\": [[], {}]}";
+    JsonParser p = new JsonParser(doc);
+    JsonValue v = p.Parse();
+
+    print("--- pretty ---\n");
+    PrintJson(v, 0);
+    print("\n--- checks ---\n");
+    // raiz eh objeto com 9 chaves
+    assert(v.Kind == 1);
+    assert(v.Keys.Length == 9);
+    assert(v.Keys[0] == "name");
+    assert(v.Kids[0].Kind == 3);
+    assert(v.Kids[0].Text == "HP-HL");
+    assert(v.Kids[1].Text == "95");
+    assert(parse_int(v.Kids[1].Text) == 95);
+    assert(v.Kids[2].Text == "1");
+    assert(v.Kids[3].Text == "0");
+    assert(v.Kids[4].Kind == 0);
+    // nums: [1, -2.5, 3e2]
+    assert(v.Kids[5].Kind == 2);
+    assert(v.Kids[5].Kids.Length == 3);
+    assert(v.Kids[5].Kids[1].Text == "-2.5");
+    // nested.b eh objeto vazio
+    assert(v.Kids[6].Kids[1].Keys.Length == 0);
+    // escapes decodificados
+    assert(v.Kids[7].Text == "A\"B\\C/D\b\f\n\r\tEA");
+    // empty: [[], {}]
+    assert(v.Kids[8].Kids[0].Kids.Length == 0);
+    assert(v.Kids[8].Kids[1].Keys.Length == 0);
+    print("all checks ok\n");
+
+    // recursão profunda: objetos aninhados + array de 3 no fundo
+    string deep = "{\"l0\": {\"l1\": {\"l2\": [10, 20, 30]}}}";
+    JsonParser p2 = new JsonParser(deep);
+    JsonValue w = p2.Parse();
+    assert(w.Kids[0].Kids[0].Kids[0].Kids[2].Text == "30");
+    assert(w.Kids[0].Kids[0].Kids[0].Kids[0].Text == "10");
+    print("deep ok\n");
+
+    print("\nJSON parser showcase OK\n");
+}

@@ -1,0 +1,9 @@
+// A6: threadlocal atômico (warning, não erro) - funcional
+threadlocal atomic int counter = 0;
+
+void Main() {
+    counter = counter + 1;
+    counter = counter + 1;
+    print(counter);
+    print("\n");
+}

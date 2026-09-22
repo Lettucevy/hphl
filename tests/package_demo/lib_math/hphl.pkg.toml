@@ -1,0 +1,4 @@
+name = "lib_math"
+version = "1.2.0"
+entry = "math.hphl"
+sources = ["math.hphl"]

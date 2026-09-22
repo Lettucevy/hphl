@@ -1,0 +1,8 @@
+// erro_visibility.hphl - internal members must not be visible outside the module
+
+import "../examples/ModCore.hphl" as MC;
+
+void Main() {
+    print(MC.secret());
+    print("\n");
+}

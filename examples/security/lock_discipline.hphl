@@ -1,0 +1,26 @@
+// lock_discipline.hphl: Safe lock acquisition patterns and discipline
+// decisões e usos do objeto DENTRO do bloco; re-lock para acessar de novo
+class Caixa {
+    public int valor;
+}
+
+void Main() {
+    Caixa cx = new Caixa();
+    cx.valor = 7;
+
+    // Read and use within same lock block: eliminates TOCTOU race windows
+    lock (cx) {
+        println(cx.valor);
+    }
+
+    // Subsequent access: re-acquire lock for synchronized read
+    lock (cx) {
+        cx.valor = cx.valor + 1;
+        println(cx.valor);
+    }
+
+    // Unlocked object: unrestricted local usage
+    Caixa outra = new Caixa();
+    outra.valor = 99;
+    println(outra.valor);
+}

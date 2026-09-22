@@ -1,0 +1,6 @@
+// erro_channel_capacity.hphl - teste negativo: capacidade do channel deve
+// ser um literal inteiro > 0 (spec §10, M2)
+void Main() {
+    channel<int> ch = new channel<int>(0); // erro: capacidade inválida
+    print("done\n");
+}

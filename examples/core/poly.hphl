@@ -1,0 +1,37 @@
+// poly.hphl: Polymorphism, subsumption, virtual dispatch and base.Method()
+class Character {
+    public int hp;
+    public void Falar() { print("..."); }
+    public void Dizer() { print("sou character"); }
+    public int Golpe() { return 5; }
+}
+class Enemy : Character {
+    public int forca;
+    public void Dizer() { print("sou enemy"); }
+    public int Golpe() { return base.Golpe() + forca; }
+}
+void Afirma(Character c) {
+    c.Dizer();
+}
+void Main() {
+    Enemy e = new Enemy();
+    e.hp = 100;
+    e.forca = 3;
+
+    // fields: base + derived at distinct memory offsets
+    print(e.hp);
+    print("\n");
+
+    // method override with base.Method() invocation
+    print(e.Golpe());
+    print("\n"); // 8 = 5 + 3
+
+    // subsumption + virtual dispatch
+    Afirma(e);           // "sou enemy" (override vence)
+    Character c = e;
+    c.Dizer();           // "sou enemy"
+    print("\n");
+    print(c.Golpe());    // 8 (virtual)
+    print("\n");
+    print("done");
+}

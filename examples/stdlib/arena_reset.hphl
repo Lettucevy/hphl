@@ -1,0 +1,18 @@
+// arena_reset.hphl: Resettable arena allocator via arena_reset()
+// Recycles entire frame arena; objects allocated AFTER reset are fresh
+// frescos, e acessar os anteriores é erro de compilação (USE AFTER FREE)
+class P {
+    public int v;
+}
+
+void Main() {
+    arena P a;
+    a.v = 10;
+    println(a.v);
+
+    arena_reset(); // recicla todos os blocos da arena deste frame
+
+    arena P b;     // declaração pós-reset: objeto novo e válido
+    b.v = 20;
+    println(b.v);
+}

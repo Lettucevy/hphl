@@ -1,0 +1,12 @@
+// erro_await_tipo.hphl - teste negativo: await espera uma expressão task<T>
+// (spec §10, M2)
+async int Nada() {
+    return 1;
+}
+
+void Main() {
+    int x = await 5; // erro: 5 não é task<T>
+    print(x);
+    print("\n");
+    print("done\n");
+}

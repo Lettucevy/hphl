@@ -1,0 +1,8 @@
+// parâmetro obrigatório não pode vir depois de um opcional
+public int Soma(int a, int b = 5, int c) {
+  return a + b + c;
+}
+
+public void Main() {
+  print(Soma(1, 2, 3));
+}

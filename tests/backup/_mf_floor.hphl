@@ -1,0 +1,4 @@
+void Main() {
+    double x = floor(2.7);
+    println(x);
+}

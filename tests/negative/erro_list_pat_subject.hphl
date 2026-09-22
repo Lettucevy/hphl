@@ -1,0 +1,12 @@
+// erro: padrão de lista exige sujeito list ou array
+int f() {
+  int x = 5;
+  return match (x) {
+    [a] => 1,
+    _ => 0,
+  };
+}
+
+void Main() {
+  print(f(), "\n");
+}

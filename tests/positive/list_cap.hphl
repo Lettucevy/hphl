@@ -1,0 +1,13 @@
+// B11: construtor list<T>(n) com capacidade inicial
+void Main() {
+    list<int> xs = list<int>(100);
+    print(xs.Length);
+    print("\n");
+    xs.Add(1);
+    xs.Add(2);
+    xs.Add(3);
+    print(xs.Length);
+    print("\n");
+    print(xs[2]);
+    print("\n");
+}

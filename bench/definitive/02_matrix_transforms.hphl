@@ -1,0 +1,90 @@
+class Mat4 {
+    public float<64> m00; public float<64> m01; public float<64> m02; public float<64> m03;
+    public float<64> m10; public float<64> m11; public float<64> m12; public float<64> m13;
+    public float<64> m20; public float<64> m21; public float<64> m22; public float<64> m23;
+    public float<64> m30; public float<64> m31; public float<64> m32; public float<64> m33;
+
+    public Mat4() {
+        this.m00 = 1.0; this.m01 = 0.0; this.m02 = 0.0; this.m03 = 0.0;
+        this.m10 = 0.0; this.m11 = 1.0; this.m12 = 0.0; this.m13 = 0.0;
+        this.m20 = 0.0; this.m21 = 0.0; this.m22 = 1.0; this.m23 = 0.0;
+        this.m30 = 0.0; this.m31 = 0.0; this.m32 = 0.0; this.m33 = 1.0;
+    }
+
+    public static Mat4 Translation(float<64> tx, float<64> ty, float<64> tz) {
+        Mat4 m = new Mat4();
+        m.m03 = tx;
+        m.m13 = ty;
+        m.m23 = tz;
+        return m;
+    }
+
+    public static Mat4 RotationZ(float<64> rad) {
+        Mat4 m = new Mat4();
+        float<64> c = cos(rad);
+        float<64> s = sin(rad);
+        m.m00 = c;
+        m.m01 = 0.0 - s;
+        m.m10 = s;
+        m.m11 = c;
+        return m;
+    }
+
+    public Mat4 Mul(Mat4 o) {
+        Mat4 r = new Mat4();
+        r.m00 = this.m00*o.m00 + this.m01*o.m10 + this.m02*o.m20 + this.m03*o.m30;
+        r.m01 = this.m00*o.m01 + this.m01*o.m11 + this.m02*o.m21 + this.m03*o.m31;
+        r.m02 = this.m00*o.m02 + this.m01*o.m12 + this.m02*o.m22 + this.m03*o.m32;
+        r.m03 = this.m00*o.m03 + this.m01*o.m13 + this.m02*o.m23 + this.m03*o.m33;
+
+        r.m10 = this.m10*o.m00 + this.m11*o.m10 + this.m12*o.m20 + this.m13*o.m30;
+        r.m11 = this.m10*o.m01 + this.m11*o.m11 + this.m12*o.m21 + this.m13*o.m31;
+        r.m12 = this.m10*o.m02 + this.m11*o.m12 + this.m12*o.m22 + this.m13*o.m32;
+        r.m13 = this.m10*o.m03 + this.m11*o.m13 + this.m12*o.m23 + this.m13*o.m33;
+
+        r.m20 = this.m20*o.m00 + this.m21*o.m10 + this.m22*o.m20 + this.m23*o.m30;
+        r.m21 = this.m20*o.m01 + this.m21*o.m11 + this.m22*o.m21 + this.m23*o.m31;
+        r.m22 = this.m20*o.m02 + this.m21*o.m12 + this.m22*o.m22 + this.m23*o.m32;
+        r.m23 = this.m20*o.m03 + this.m21*o.m13 + this.m22*o.m23 + this.m23*o.m33;
+
+        r.m30 = this.m30*o.m00 + this.m31*o.m10 + this.m32*o.m20 + this.m33*o.m30;
+        r.m31 = this.m30*o.m01 + this.m31*o.m11 + this.m32*o.m21 + this.m33*o.m31;
+        r.m32 = this.m30*o.m02 + this.m31*o.m12 + this.m32*o.m22 + this.m33*o.m32;
+        r.m33 = this.m30*o.m03 + this.m31*o.m13 + this.m32*o.m23 + this.m33*o.m33;
+        return r;
+    }
+}
+
+void Main() {
+    int iters = 2000000;
+    float<64> sumX = 0.0;
+    float<64> sumY = 0.0;
+    float<64> sumZ = 0.0;
+
+    Mat4 t = Mat4.Translation(10.0, 20.0, 30.0);
+    Mat4 r = Mat4.RotationZ(0.7853981633974483);
+    Mat4 combined = t.Mul(r);
+
+    float<64> vx = 1.0;
+    float<64> vy = 2.0;
+    float<64> vz = 3.0;
+
+    for (int i = 0; i < iters; i++) {
+        float<64> nx = combined.m00*vx + combined.m01*vy + combined.m02*vz + combined.m03;
+        float<64> ny = combined.m10*vx + combined.m11*vy + combined.m12*vz + combined.m13;
+        float<64> nz = combined.m20*vx + combined.m21*vy + combined.m22*vz + combined.m23;
+
+        sumX = sumX + nx;
+        sumY = sumY + ny;
+        sumZ = sumZ + nz;
+
+        vx = nx * 0.0001 + 1.0;
+        vy = ny * 0.0001 + 2.0;
+        vz = nz * 0.0001 + 3.0;
+    }
+
+    float<64> total = sumX + sumY + sumZ;
+    print("Checksum: ");
+    print(total);
+    print("\n");
+}

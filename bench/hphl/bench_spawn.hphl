@@ -1,0 +1,22 @@
+// bench_spawn.hphl — custo de criar/escalonar tarefas: N spawns sem payload
+// (overhead puro do scheduler de threads), medido com a lib Bench (HPHL).
+import Bench;
+
+void Main() {
+    int N = 512; // spawns por rodada (processo)
+    // aquecimento: esgota o ajuste do pool uma vez
+    spawn task {}
+    int<64> t0 = Bench.Now();
+    int i = 0;
+    while (i < N) {
+        spawn task {}
+        i++;
+    }
+    int<64> t1 = Bench.Now();
+    // o join do fim de Main drena a fila; medimos o ENVIO, não a execução
+    print("spawns = ");
+    print(N);
+    print("\n");
+    Bench.ReportUs("envio de spawns", t1 - t0);
+    print("(execucao das tasks depende do pool)\n");
+}

@@ -1,0 +1,90 @@
+/*
+   Cookbook 02: JSON parse (subset)
+   Parses a tiny subset of JSON: objects with string keys and string/number values.
+   Demonstrates: recursive descent, match, list of tokens, error handling.
+*/
+module cookbook.jsonparse;
+
+import std.string;
+
+enum TokenKind {
+    T_LBrace, T_RBrace, T_LBracket, T_RBracket,
+    T_Comma, T_Colon,
+    T_String, T_Number, T_True, T_False, T_Null, T_EOF
+}
+
+class Token {
+    public TokenKind Kind;
+    public string Text;
+    public Token(TokenKind k, string t) { Kind = k; Text = t; }
+}
+
+class Lexer {
+    private string src;
+    private int pos = 0;
+    public Lexer(string s) { src = s; }
+    private void Skip() {
+        while (pos < src.Length && (src[pos] == ' ' || src[pos] == '\t' ||
+               src[pos] == '\n' || src[pos] == '\r')) pos = pos + 1;
+    }
+    public Token Next() {
+        Skip();
+        if (pos >= src.Length) return new Token(TokenKind.T_EOF, "");
+        char c = src[pos];
+        if (c == '{') { pos = pos + 1; return new Token(TokenKind.T_LBrace, "{"); }
+        if (c == '}') { pos = pos + 1; return new Token(TokenKind.T_RBrace, "}"); }
+        if (c == '[') { pos = pos + 1; return new Token(TokenKind.T_LBracket, "["); }
+        if (c == ']') { pos = pos + 1; return new Token(TokenKind.T_RBracket, "]"); }
+        if (c == ',') { pos = pos + 1; return new Token(TokenKind.T_Comma, ","); }
+        if (c == ':') { pos = pos + 1; return new Token(TokenKind.T_Colon, ":"); }
+        if (c == '"') {
+            pos = pos + 1;
+            int start = pos;
+            while (pos < src.Length && src[pos] != '"') pos = pos + 1;
+            string s = SubStr(src, start, pos - start);
+            if (pos < src.Length) pos = pos + 1;
+            return new Token(TokenKind.T_String, s);
+        }
+        if (c >= '0' && c <= '9') {
+            int start = pos;
+            while (pos < src.Length && src[pos] >= '0' && src[pos] <= '9') pos = pos + 1;
+            return new Token(TokenKind.T_Number, SubStr(src, start, pos - start));
+        }
+        return new Token(TokenKind.T_EOF, "");  // error
+    }
+}
+
+class Parser {
+    private Lexer lex;
+    private Token cur;
+    public Parser(string s) { lex = new Lexer(s); cur = lex.Next(); }
+    private void Eat(TokenKind k) {
+        if (cur.Kind != k) panic($"expected {k}");
+        cur = lex.Next();
+    }
+    public void ParseObject() {
+        Eat(TokenKind.T_LBrace);
+        while (cur.Kind != TokenKind.T_RBrace) {
+            string key = cur.Text;
+            Eat(TokenKind.T_String);
+            Eat(TokenKind.T_Colon);
+            if (cur.Kind == TokenKind.T_String) {
+                print("  "); print(key); print(": \""); print(cur.Text); print("\"\n");
+                cur = lex.Next();
+            } else if (cur.Kind == TokenKind.T_Number) {
+                print("  "); print(key); print(": "); print(cur.Text); print("\n");
+                cur = lex.Next();
+            }
+            if (cur.Kind == TokenKind.T_Comma) cur = lex.Next();
+        }
+        Eat(TokenKind.T_RBrace);
+    }
+}
+
+void Main() {
+    string src = "{\"name\":\"Ana\",\"age\":30,\"city\":\"SP\"}";
+    Parser p = new Parser(src);
+    print("{\n");
+    p.ParseObject();
+    print("}\n");
+}

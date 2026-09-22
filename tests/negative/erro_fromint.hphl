@@ -1,0 +1,10 @@
+// erro: Enum.FromInt exige inteiro
+enum Dia {
+  Segunda,
+  Terca,
+}
+
+void Main() {
+  Option<Dia> o = Dia.FromInt("t");
+  print(1, "\n");
+}

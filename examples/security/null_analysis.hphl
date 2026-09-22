@@ -1,0 +1,21 @@
+// null_analysis.hphl: Safe nullability analysis patterns
+// Safe navigation `?.`, coalescing `??`, null checks, and non-null reassignments
+class P {
+    public int v;
+    P(int x) { this.v = x; }
+}
+
+void Main() {
+    P p = null;
+    int a = p?.v ?? -1;        // acesso condicional com default
+    println(a);                // -1
+
+    if (p != null) {
+        println(p.v);          // guardado: ok no ramo do !=
+    } else {
+        println(0);            // ramo do ==: p é null aqui
+    }
+
+    p = new P(5);              // reassigned: deixa de ser possivelmente-null
+    println(p.v);              // 5
+}

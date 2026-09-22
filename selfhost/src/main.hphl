@@ -1,0 +1,55 @@
+// ===========================================================================
+// selfhost/src/main.hphl — Driver do compilador self-host
+// Espelha compiler/src/main.cpp
+// Pipeline: read_file → Lexer → Parser → Semantic → CG → write_file (.s x64)
+// ===========================================================================
+
+import "ast/ast.hphl";
+import "frontend/token.hphl";
+import "frontend/lexer.hphl";
+import "frontend/parser.hphl";
+import "semantic/semantic.hphl";
+import "codegen/codegen.hphl";
+
+void Main() {
+    string srcpath = "selfhost/demo.hphl";
+    string tp = read_file("selfhost/target.txt");
+    if (tp != "") {
+        // remove \n/\r do fim
+        var ln = str_len(tp);
+        while (ln > 0) {
+            string c = sub_str(tp, ln - 1, 1);
+            if (c == "\n" || c == "\r") { ln = ln - 1; continue; }
+            break;
+        }
+        srcpath = sub_str(tp, 0, ln);
+        println("[sh] alvo: " + srcpath);
+    }
+    string src = read_file(srcpath);
+    if (src == "") {
+        println("[sh] fonte não encontrado: " + srcpath);
+        return;
+    }
+    Parser p = new Parser(new Lexer(src));
+    println("[sh] parse: iniciando");
+    Decl prog = p.ParseProgram();
+    println("[sh] parse OK");
+    string dump = "";
+    Decl dd = prog;
+    while (dd != null) {
+        dump = dump + "[d] kind=" + dd.kind + " name=" + dd.name + " ret=" + dd.retType + "\n";
+        dd = dd.next;
+    }
+    write_file("selfhost_dump.txt", dump);
+    Semantic sem = new Semantic();
+    int errs = sem.CheckProgram(prog);
+    if (errs > 0) {
+        println("[sh] semantica: " + errs + " erro(s)");
+        return;
+    }
+    println("[sh] semantica OK");
+    CG cg = new CG();
+    cg.GenProgram(prog);
+    cg.FlushTo("selfhost_demo.s");
+    println("[sh] codegen ok: " + cg.ln + " linhas");
+}

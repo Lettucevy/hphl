@@ -1,0 +1,14 @@
+// erro: padrão de struct exige sujeito struct
+struct Ponto {
+  int x;
+  int y;
+}
+
+void Main() {
+  int n = 42;
+  int r = match (n) {
+    Ponto(x: 1, y: 2) => 10,
+    _ => 20,
+  };
+  print(r, "\n");
+}

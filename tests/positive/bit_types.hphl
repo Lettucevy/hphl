@@ -1,0 +1,54 @@
+Main() {
+    int<1> a = 1;
+    int<2> b = 3;
+    int<4> c = 7;
+    int<8> d = 42;
+    int<16> e = 1000;
+    int<32> f = 2000000;
+    int<64> g = 9000000000;
+    int<128> h = 123456789;
+    int<256> i = 987654321;
+    int<512> j = 555555;
+    int<1024> k = 999999;
+
+    u8 u_8 = 255;
+    u16 u_16 = 65535;
+    u32 u_32 = 4000000;
+    u64 u_64 = 18000000000;
+
+    float<16> f16 = 1.5;
+    float<32> f32 = 3.14;
+    float<64> f64 = 2.71828;
+    float<128> f128 = 1.41421356;
+    float<256> f256 = 0.5;
+    float<512> f512 = 0.25;
+    float<1024> f1024 = 0.125;
+
+    char<8> c8 = 'A';
+    char<16> c16 = 'B';
+    char<32> c32 = 'C';
+
+    bool<1> b1 = true;
+    bool<8> b8 = false;
+
+    print("a = "); print(a); print("\n");
+    print("b = "); print(b); print("\n");
+    print("c = "); print(c); print("\n");
+    print("d = "); print(d); print("\n");
+    print("e = "); print(e); print("\n");
+    print("f = "); print(f); print("\n");
+    print("g = "); print(g); print("\n");
+    print("h = "); print(h); print("\n");
+    print("i = "); print(i); print("\n");
+    print("j = "); print(j); print("\n");
+    print("k = "); print(k); print("\n");
+    print("u_8 = "); print(u_8); print("\n");
+    print("u_16 = "); print(u_16); print("\n");
+    print("u_32 = "); print(u_32); print("\n");
+    print("u_64 = "); print(u_64); print("\n");
+    print("f32 = "); print(f32); print("\n");
+    print("f64 = "); print(f64); print("\n");
+    print("c8 = "); print(c8); print("\n");
+    print("b1 = "); print(b1); print("\n");
+    print("ok!\n");
+}

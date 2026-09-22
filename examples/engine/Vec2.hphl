@@ -1,0 +1,44 @@
+// Vec2.hphl: 2D vector math (float<64>, pure native arithmetic).
+module Vec2;
+
+public class Vec2 {
+    public float<64> X;
+    public float<64> Y;
+
+    public Vec2(float<64> x, float<64> y) {
+        X = x;
+        Y = y;
+    }
+
+    public Vec2 Add(Vec2 o) {
+        return new Vec2(X + o.X, Y + o.Y);
+    }
+
+    public Vec2 Sub(Vec2 o) {
+        return new Vec2(X - o.X, Y - o.Y);
+    }
+
+    public Vec2 Mul(float<64> s) {
+        return new Vec2(X * s, Y * s);
+    }
+
+    public float<64> Dot(Vec2 o) {
+        return X * o.X + Y * o.Y;
+    }
+
+    public float<64> Len() {
+        return sqrt(X * X + Y * Y);
+    }
+
+    public Vec2 Norm() {
+        float<64> l = this.Len();
+        if (l < 0.000001) return new Vec2(0.0, 0.0);
+        return new Vec2(X / l, Y / l);
+    }
+
+    public float<64> Dist(Vec2 o) {
+        float<64> dx = X - o.X;
+        float<64> dy = Y - o.Y;
+        return sqrt(dx * dx + dy * dy);
+    }
+}

@@ -1,0 +1,68 @@
+struct Particle {
+    public float<64> x;
+    public float<64> y;
+    public float<64> z;
+    public float<64> vx;
+    public float<64> vy;
+    public float<64> vz;
+
+    public Particle(float<64> x, float<64> y, float<64> z, float<64> vx, float<64> vy, float<64> vz) {
+        this.x = x;
+        this.y = y;
+        this.z = z;
+        this.vx = vx;
+        this.vy = vy;
+        this.vz = vz;
+    }
+
+    public void Step() {
+        this.vy = this.vy - 0.1;
+        this.x = this.x + this.vx;
+        this.y = this.y + this.vy;
+        this.z = this.z + this.vz;
+
+        if (this.x < -100.0) { this.x = -100.0; this.vx = 0.0 - (this.vx * 0.9); }
+        if (this.x > 100.0)  { this.x = 100.0;  this.vx = 0.0 - (this.vx * 0.9); }
+        if (this.y < -100.0) { this.y = -100.0; this.vy = 0.0 - (this.vy * 0.9); }
+        if (this.y > 100.0)  { this.y = 100.0;  this.vy = 0.0 - (this.vy * 0.9); }
+        if (this.z < -100.0) { this.z = -100.0; this.vz = 0.0 - (this.vz * 0.9); }
+        if (this.z > 100.0)  { this.z = 100.0;  this.vz = 0.0 - (this.vz * 0.9); }
+    }
+}
+
+void Main() {
+    int n = 100000;
+    int steps = 100;
+    list<Particle> parts = new list<Particle>();
+    int seed = 12345;
+    for (int i = 0; i < n; i++) {
+        seed = (seed * 1103515245 + 12345) & 2147483647;
+        float<64> rx = (seed % 200 - 100) * 1.0;
+        seed = (seed * 1103515245 + 12345) & 2147483647;
+        float<64> ry = (seed % 200 - 100) * 1.0;
+        seed = (seed * 1103515245 + 12345) & 2147483647;
+        float<64> rz = (seed % 200 - 100) * 1.0;
+        seed = (seed * 1103515245 + 12345) & 2147483647;
+        float<64> rvx = (seed % 20 - 10) * 0.1;
+        seed = (seed * 1103515245 + 12345) & 2147483647;
+        float<64> rvy = (seed % 20 - 10) * 0.1;
+        seed = (seed * 1103515245 + 12345) & 2147483647;
+        float<64> rvz = (seed % 20 - 10) * 0.1;
+
+        parts.Add(new Particle(rx, ry, rz, rvx, rvy, rvz));
+    }
+
+    for (int s = 0; s < steps; s++) {
+        for (int i = 0; i < n; i++) {
+            parts[i].Step();
+        }
+    }
+
+    float<64> sum = 0.0;
+    for (int i = 0; i < n; i++) {
+        sum = sum + parts[i].x + parts[i].y + parts[i].z;
+    }
+    print("Checksum: ");
+    print(sum);
+    print("\n");
+}

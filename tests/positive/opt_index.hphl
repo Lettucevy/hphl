@@ -1,0 +1,154 @@
+// tests/positive/opt_index.hphl
+// Validacao do operador ?[] (safe indexing) (item 2.16)
+
+class Item {
+    int id;
+    string name;
+}
+
+void testArray() {
+    int[3] arr;
+    arr[0] = 10;
+    arr[1] = 20;
+    arr[2] = 30;
+
+    // em limites -> Some(val)
+    Option<int> o0 = arr?[0];
+    assert(o0.IsSome && o0.Value == 10);
+
+    Option<int> o1 = arr?[1];
+    assert(o1.IsSome && o1.Value == 20);
+
+    Option<int> o2 = arr?[2];
+    assert(o2.IsSome && o2.Value == 30);
+
+    // fora dos limites -> None
+    Option<int> neg = arr?[-1];
+    assert(neg.IsNone);
+
+    Option<int> o3 = arr?[3];
+    assert(o3.IsNone);
+
+    Option<int> o100 = arr?[100];
+    assert(o100.IsNone);
+
+    // coalescing ??
+    int v1 = (arr?[1]) ?? 999;
+    assert(v1 == 20);
+
+    int vDef = (arr?[5]) ?? 999;
+    assert(vDef == 999);
+}
+
+void testList() {
+    list<int> lst = new list<int>();
+    lst.Add(100);
+    lst.Add(200);
+
+    // em limites
+    Option<int> l0 = lst?[0];
+    assert(l0.IsSome && l0.Value == 100);
+
+    Option<int> l1 = lst?[1];
+    assert(l1.IsSome && l1.Value == 200);
+
+    // fora dos limites
+    Option<int> lneg = lst?[-1];
+    assert(lneg.IsNone);
+
+    Option<int> l2 = lst?[2];
+    assert(l2.IsNone);
+
+    Option<int> l10 = lst?[10];
+    assert(l10.IsNone);
+
+    // coalescing
+    assert(((lst?[0]) ?? 0) == 100);
+    assert(((lst?[5]) ?? -1) == -1);
+
+    // lista null
+    list<int> nullLst = null;
+    Option<int> nl0 = nullLst?[0];
+    assert(nl0.IsNone);
+
+    Option<int> nlNeg = nullLst?[-1];
+    assert(nlNeg.IsNone);
+
+    assert(((nullLst?[0]) ?? 42) == 42);
+}
+
+void testListOfClass() {
+    list<Item> items = new list<Item>();
+    Item it1 = new Item();
+    it1.id = 1;
+    it1.name = "primeiro";
+    items.Add(it1);
+
+    // em limites: devolve referencia nao-null
+    Item r1 = items?[0];
+    assert(r1 != null);
+    if (r1 != null) {
+        assert(r1.id == 1);
+    }
+
+    // fora dos limites: devolve null
+    Item r2 = items?[5];
+    assert(r2 == null);
+
+    Item rNeg = items?[-1];
+    assert(rNeg == null);
+
+    // lista null: devolve null
+    list<Item> nullItems = null;
+    Item rNull = nullItems?[0];
+    assert(rNull == null);
+
+    // coalescing com fallback
+    Item fallback = new Item();
+    fallback.id = 999;
+    Item res = (nullItems?[0]) ?? fallback;
+    assert(res != null && res.id == 999);
+}
+
+void testString() {
+    string s = "ABC";
+
+    // em limites -> Some(char)
+    Option<char> c0 = s?[0];
+    assert(c0.IsSome && c0.Value == 'A');
+
+    Option<char> c1 = s?[1];
+    assert(c1.IsSome && c1.Value == 'B');
+
+    Option<char> c2 = s?[2];
+    assert(c2.IsSome && c2.Value == 'C');
+
+    // fora dos limites -> None
+    Option<char> cNeg = s?[-1];
+    assert(cNeg.IsNone);
+
+    Option<char> c3 = s?[3];
+    assert(c3.IsNone);
+
+    Option<char> c10 = s?[10];
+    assert(c10.IsNone);
+
+    // coalescing ??
+    assert(((s?[0]) ?? ' ') == 'A');
+    assert(((s?[5]) ?? '?') == '?');
+
+    // string null
+    string nullStr = null;
+    Option<char> nc = nullStr?[0];
+    assert(nc.IsNone);
+    assert(((nullStr?[0]) ?? 'Z') == 'Z');
+}
+
+void Main() {
+    testArray();
+    testList();
+    testListOfClass();
+    testString();
+
+    print("opt_index passed!\n");
+}

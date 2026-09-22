@@ -1,0 +1,41 @@
+// derives.hphl — teste de derive em struct e class (v0.25.0, spec §11):
+// Equatable (==, !=, Equals), Comparable (<, >, <=, >=, CompareTo),
+// Hashable (Hash), Cloneable (Clone).
+
+derive Equatable, Comparable, Hashable, Cloneable
+struct Ponto {
+    int x;
+    int y;
+}
+
+derive Equatable, Comparable, Hashable, Cloneable
+class Jogador {
+    int vida;
+    string nome;
+    int xp;
+}
+
+void Main() {
+    Ponto p1; p1.x = 10; p1.y = 20;
+    Ponto p2; p2.x = 10; p2.y = 20;
+    Ponto p3; p3.x = 10; p3.y = 30;
+
+    print(p1 == p2); print("\n"); // true
+    print(p1 == p3); print("\n"); // false
+    print(p1 < p3);  print("\n"); // true (20 < 30)
+
+    Jogador j1 = new Jogador(); j1.vida = 100; j1.nome = "Heroi"; j1.xp = 50;
+    Jogador j2 = new Jogador(); j2.vida = 100; j2.nome = "Heroi"; j2.xp = 50;
+    Jogador j3 = new Jogador(); j3.vida = 100; j3.nome = "Vilao"; j3.xp = 50;
+
+    print(j1 == j2); print("\n"); // true (campos iguais)
+    print(j1 == j3); print("\n"); // false
+    print(j1.Equals(j2)); print("\n"); // true
+    print(j1.CompareTo(j3) < 0); print("\n"); // true ("Heroi" < "Vilao")
+
+    Jogador copy = j1.Clone();
+    print(copy == j1); print("\n"); // true
+    print(copy.Hash() == j1.Hash()); print("\n"); // true
+
+    print("done"); print("\n");
+}

@@ -1,0 +1,28 @@
+// gc_string.hphl: String allocation stress (concatenation and dynamic interning)
+// Validates dynamic string capacity and collection of temporary strings
+// Compile: hphlc gc_string.hphl -o gc_string.exe
+
+void Main() {
+    print("GC string: concatenando 2000 strings...\n");
+    string s = "";
+    for (int i = 0; i < 200; i++) {
+        // Each iteration concatenates fragments across multiple rounds
+        string a = "a" + i;
+        string b = "b" + (i*2);
+        string c = a + b;
+        string d = c + "_x";
+        string e = d + "!";
+        s = s + e;
+        // Temporary strings must be collectible without memory leaks
+    }
+    print("len=");
+    print(str_len(s));
+    print("\n");
+    // Verify partial contents
+    if (contains(s, "a0b0_x!") && contains(s, "a199b398_x!")) {
+        print("GC string PASS\n");
+    } else {
+        print("GC string FAIL\n");
+    }
+    // GC in epilogue cleans up all temporary string buffers
+}

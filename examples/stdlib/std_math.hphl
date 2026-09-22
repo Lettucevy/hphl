@@ -1,0 +1,20 @@
+// std_math.hphl: Standard math functions (abs, min, max, floor, ceil, pow, sin, cos)
+// Overloaded abs/min/max; floor/ceil/round/pow via libm; PI/E constants
+// constantes PI()/E()
+void Main() {
+    println(abs(-7));          // 7
+    println(abs(7));           // 7
+    println(abs(-2.5));        // 2.5
+    println(min(3, -2));       // -2
+    println(max(3, -2));       // 3
+    println(min(1.5, 0.5));    // 0.5
+    println(max(1.5, 0.5));    // 1.5
+    println(floor(2.7));       // 2
+    println(ceil(2.1));        // 3
+    println(round(2.5));       // 3
+    println(fmod(7.5, 2.0));   // 1.5
+    println(pow(2.0, 10.0));   // 1024
+    println(pow(9.0, 0.5));    // 3
+    println(PI());             // 3.14159
+    println(E());              // 2.71828
+}

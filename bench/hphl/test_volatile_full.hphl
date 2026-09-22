@@ -1,0 +1,10 @@
+void Main() {
+    // Test 1: volatile with explicit type
+    volatile int<64> x = 42;
+    
+    // Test 2: volatile with var (local var with inference)
+    volatile var y = 100;
+    
+    // Test 3: regular variable for comparison
+    int<64> z = 200;
+}

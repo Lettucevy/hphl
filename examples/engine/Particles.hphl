@@ -1,0 +1,84 @@
+// Particles.hphl: Particle system emitter (SoA layout): sparks and explosions.
+module Particles;
+
+import CharBuffer;
+
+float<64>[512] px;
+float<64>[512] py;
+float<64>[512] pvx;
+float<64>[512] pvy;
+int[512] plife;
+int[512] pmax;
+string[512] pglyph;
+int palive;
+
+public int FxCount() {
+    return palive;
+}
+
+public void FxSpawn(float<64> x, float<64> y, float<64> vx, float<64> vy, int life, string g) {
+    if (palive >= 512) return;
+    px[palive] = x;
+    py[palive] = y;
+    pvx[palive] = vx;
+    pvy[palive] = vy;
+    plife[palive] = life;
+    pmax[palive] = life;
+    pglyph[palive] = g;
+    palive = palive + 1;
+}
+
+public void FxBurst(float<64> x, float<64> y, int n, int spd) {
+    int i = 0;
+    while (i < n) {
+        float<64> vx = (random_int(0, spd * 200) - spd * 100) / 100.0;
+        float<64> vy = (random_int(0, spd * 200) - spd * 100) / 100.0 - 0.5;
+        int life = random_int(12, 30);
+        string g = "*";
+        int pick = random_int(0, 2);
+        if (pick == 1) g = "+";
+        if (pick == 2) g = "o";
+        FxSpawn(x, y, vx, vy, life, g);
+        i = i + 1;
+    }
+}
+
+void FxKill(int i) {
+    palive = palive - 1;
+    px[i] = px[palive];
+    py[i] = py[palive];
+    pvx[i] = pvx[palive];
+    pvy[i] = pvy[palive];
+    plife[i] = plife[palive];
+    pmax[i] = pmax[palive];
+    pglyph[i] = pglyph[palive];
+}
+
+public void FxUpdate() {
+    int i = 0;
+    while (i < palive) {
+        px[i] = px[i] + pvx[i];
+        py[i] = py[i] + pvy[i];
+        pvy[i] = pvy[i] + 0.02;
+        plife[i] = plife[i] - 1;
+        if (plife[i] <= 0) {
+            FxKill(i);
+        } else {
+            i = i + 1;
+        }
+    }
+}
+
+public string FxGlyph(int i) {
+    if (plife[i] * 3 > pmax[i] * 2) return pglyph[i];
+    if (plife[i] * 3 > pmax[i]) return "+";
+    return ".";
+}
+
+public void FxDraw(int ox, int oy) {
+    int i = 0;
+    while (i < palive) {
+        BufSet((int)(px[i] + 0.5) + ox, (int)(py[i] + 0.5) + oy, FxGlyph(i));
+        i = i + 1;
+    }
+}

@@ -1,0 +1,8 @@
+// erro: list com política 'arena' (proibida — só 'stack' ou 'heap')
+arena list<int> xs;
+
+Main() {
+  xs.Add(1);
+  print(xs.Length);
+  print("\n");
+}

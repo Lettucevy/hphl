@@ -1,0 +1,34 @@
+/*
+   Cookbook 04: thread pool
+   A simple work-stealing thread pool: N workers each pull tasks from a shared queue.
+   Demonstrates: channels, atomic counters, RAII via shutdown.
+*/
+module cookbook.threadpool;
+
+import std.collections;
+
+class Task {
+    public int Id;
+    public Task(int i) { Id = i; }
+}
+
+channel<Task> queue = new channel<Task>(64);
+atomic int done = 0;
+const int TOTAL = 100;
+const int WORKERS = 4;
+
+void Worker() {
+    while (true) {
+        Task t = queue.Receive();
+        // simulate work
+        int x = t.Id * t.Id;
+        done = done + 1;
+    }
+}
+
+void Main() {
+    for (int w = 0; w < WORKERS; w = w + 1) spawn { Worker(); };
+    for (int i = 0; i < TOTAL; i = i + 1) queue.Send(new Task(i));
+    while (done < TOTAL) { /* spin */ }
+    print("processed "); print(done); print(" tasks\n");
+}

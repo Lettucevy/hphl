@@ -1,0 +1,6 @@
+// erro_dep.hphl - negativo: `module X depends on Y;` com Y inexistente falha
+import DepBad;
+
+void Main() {
+    print("nunca\n");
+}

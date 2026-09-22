@@ -1,0 +1,10 @@
+// erro: derive é prefixo à declaração (pós-fixo removido — spec 37/38)
+enum Estado {
+  Idle,
+  Ativo,
+} derive Comparable
+
+void Main() {
+  Estado e = Estado.Ativo;
+  print(1, "\n");
+}

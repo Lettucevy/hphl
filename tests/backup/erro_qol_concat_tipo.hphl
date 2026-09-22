@@ -1,0 +1,8 @@
+module erro_qol_concat_tipo;
+
+// M5 (v0.36.0) negativo: concatenação com tipo não escalar é erro
+void Main() {
+    list<int> l;
+    l.Add(1);
+    print("a" + l);
+}

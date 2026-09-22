@@ -1,0 +1,27 @@
+// bench_channel.hphl — comunicação entre threads: ping-pong produtor/
+// consumidor via channel (um spawn envia, Main recebe). Custo de sincronização
+// real do M2 (mutex + condvar atrás do channel).
+import Bench;
+
+void Main() {
+    channel<int> ch = new channel<int>(64);
+    int N = 1000;
+    int<64> t0 = Bench.Now();
+    spawn task {
+        int j = 0;
+        while (j < N) {
+            ch.Send(j);
+            j++;
+        }
+    }
+    int k = 0;
+    while (k < N) {
+        int v = ch.Receive();
+        k = k + 1;
+    }
+    int<64> t1 = Bench.Now();
+    print("ping-pong = ");
+    print(N);
+    print(" envios\n");
+    Bench.ReportUs("canal (send+receive)", t1 - t0);
+}

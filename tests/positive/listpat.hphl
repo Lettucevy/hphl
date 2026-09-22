@@ -1,0 +1,96 @@
+// listpat.hphl - desestruturacao de colecoes em match (spec secao 13)
+// `[..resto]` copia a cauda; `[]` casa lista vazia; arrays exigem tamanho fixo.
+
+int len(list<int> xs) {
+    return match (xs) {
+        [] => 0,
+        [_, ..t] => 1 + len(t),
+    };
+}
+
+int sum(list<int> xs) {
+    return match (xs) {
+        [] => 0,
+        [h, ..t] => h + sum(t),
+    };
+}
+
+// com uma lista [a, b, ..r], retorna a+b e o tamanho da cauda
+int headCount(list<int> xs) {
+    return match (xs) {
+        [] => 0,
+        [a, b, ..r] => (a + b) * 10 + len(r),
+        [a] => a,
+        _ => -1,
+    };
+}
+
+int[2] garr = {10, 20};
+
+int pairSum() {
+    return match (garr) {
+        [a, b] => a + b,
+    };
+}
+
+// padrao aninhado dentro de Option payload
+int headOpt(Option<list<int>> o) {
+    return match (o) {
+        Some([]) => 0,
+        Some([x, ..rest]) => x,
+        None => -1,
+    };
+}
+
+// lista de structs + padrao aninhado de struct
+struct P { int x; int y; P(int x, int y) { this.x = x; this.y = y; } }
+
+int firstX(list<P> ps) {
+    return match (ps) {
+        [] => -1,
+        [p, ..rest] => match (p) { P(x: px, y: _) => px, _ => -1 },
+    };
+}
+
+void Main() {
+    list<int> e;
+    e.Add(5);
+    e.Add(7);
+    e.Add(9);
+
+    print(len(e));
+    print("\n");
+    print(sum(e));
+    print("\n");
+    print("hc=");
+    print(headCount(e));
+    print("\n");
+
+    list<int> t2;
+    t2.Add(3);
+    t2.Add(4);
+    print("len2=");
+    print(len(t2));
+    print("\n");
+    print("hc2=");
+    print(headCount(t2));
+    print("\n");
+
+    print("pair=");
+    print(pairSum());
+    print("\n");
+
+    Option<list<int>> o1 = Some(e);
+    Option<list<int>> o2 = None;
+    print(headOpt(o1));
+    print("\n");
+    print(headOpt(o2));
+    print("\n");
+
+    list<P> ps;
+    ps.Add(new P(2, 3));
+    print(firstX(ps));
+    print("\n");
+
+    print("done\n");
+}

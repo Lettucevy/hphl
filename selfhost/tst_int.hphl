@@ -1,0 +1,5 @@
+void Main() {
+    println("x=" + 42);
+    int v = 7;
+    println("v=" + v);
+}

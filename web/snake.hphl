@@ -1,0 +1,143 @@
+// snake.hphl — lógica do jogo Snake em HP-HL compilada para WebAssembly
+// (demo do backend M10.5): toda a regra do jogo vive aqui; o navegador só
+// desenha. API exportada para o host:
+//   SnakeInit()            reinicia o estado
+//   SnakeSetDir(dx, dy)    muda a direção (não permite reversão de 180°)
+//   SnakeStep() -> int     avança 1 passo; retorna 1 se morreu
+//   SnakeAt(x, y) -> int   0 vazio | 1 corpo | 2 cabeça | 3 comida
+//   SnakeScore()/SnakeAlive()/SnakeW()/SnakeH()/SnakeLen()
+
+const int W = 24;
+const int H = 16;
+const int MAXB = 512;
+
+int[512] bx;
+int[512] by;
+int blen;
+int dirx;
+int diry;
+int fdx;
+int fdy;
+int scorev;
+int alivev;
+int rngs;
+
+int SnakeW() { return W; }
+int SnakeH() { return H; }
+int SnakeScore() { return scorev; }
+int SnakeAlive() { return alivev; }
+int SnakeLen() { return blen; }
+
+void PlaceFood() {
+    // xorshift64 com máscara: nunca negativo, nunca overflow-checked
+    for (int guard = 0; guard < 10000; guard++) {
+        rngs = rngs ^ (rngs << 13);
+        rngs = rngs ^ (rngs >> 7);
+        rngs = rngs ^ (rngs << 5);
+        int c = (rngs & 2147483647) % (W * H);
+        int cx = c % W;
+        int cy = c / W;
+        int hit = 0;
+        for (int i = 0; i < blen; i++) {
+            if (bx[i] == cx && by[i] == cy) hit = 1;
+        }
+        if (hit == 0) {
+            fdx = cx;
+            fdy = cy;
+            return;
+        }
+    }
+}
+
+void SnakeInit() {
+    blen = 4;
+    for (int i = 0; i < MAXB; i++) {
+        bx[i] = 0;
+        by[i] = 0;
+    }
+    int startX = W / 2;
+    int startY = H / 2;
+    bx[0] = startX;
+    by[0] = startY;
+    bx[1] = startX - 1;
+    by[1] = startY;
+    bx[2] = startX - 2;
+    by[2] = startY;
+    bx[3] = startX - 3;
+    by[3] = startY;
+    dirx = 1;
+    diry = 0;
+    scorev = 0;
+    alivev = 1;
+    rngs = 88172645463325252;
+    PlaceFood();
+}
+
+void SnakeSetDir(int ndx, int ndy) {
+    // proíbe reversão de 180° (a cabeça não pode voltar sobre o pescoço)
+    if (ndx == -dirx && ndy == -diry) return;
+    if (ndx == 0 && ndy == 0) return;
+    dirx = ndx;
+    diry = ndy;
+}
+
+// 0 = seguiu vivo, 1 = morreu (parede ou próprio corpo)
+int SnakeStep() {
+    if (alivev == 0) return 1;
+
+    int nx = bx[0] + dirx;
+    int ny = by[0] + diry;
+
+    if (nx < 0 || ny < 0 || nx >= W || ny >= H) {
+        alivev = 0;
+        return 1;
+    }
+
+    int eat = 0;
+    if (nx == fdx && ny == fdy) eat = 1;
+
+    // colisão com o próprio corpo; se não comeu, a cauda sai do caminho
+    int lim = blen;
+    if (eat == 0) lim = blen - 1;
+    for (int i = 0; i < lim; i++) {
+        if (bx[i] == nx && by[i] == ny) {
+            alivev = 0;
+            return 1;
+        }
+    }
+
+    // abre espaço na cabeça (shift para a direita)
+    for (int i = blen; i > 0; i--) {
+        bx[i] = bx[i - 1];
+        by[i] = by[i - 1];
+    }
+    bx[0] = nx;
+    by[0] = ny;
+
+    if (eat == 1) {
+        blen = blen + 1;
+        scorev = scorev + 10;
+        PlaceFood();
+    } else {
+        // encolhe um elo ao andar, mas nunca abaixo do tamanho inicial
+        if (blen > 4) blen = blen - 1;
+    }
+    return 0;
+}
+
+int SnakeAt(int x, int y) {
+    if (alivev == 1 && x == fdx && y == fdy) return 3;
+    for (int i = 0; i < blen; i++) {
+        if (bx[i] == x && by[i] == y) {
+            if (i == 0) return 2;
+            return 1;
+        }
+    }
+    return 0;
+}
+
+// o jogo é dirigido pelo navegador (host); Main existe só para satisfazer
+// o ponto de entrada do compilador
+void Main() {
+    SnakeInit();
+}

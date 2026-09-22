@@ -1,0 +1,42 @@
+// Bench.hphl — biblioteca de benchmark escrita EM HPHL (v0.22.9).
+// Os primitivos de clock (clock_ns, QPC do hardware) precisam ser builtin do
+// runtime — nenhuma língua lê o contador de alta resolução "só com sintaxe";
+// mas TODO o resto da medição (sampling, relatório) vive aqui, na linguagem.
+// Uso: import Bench;  →  Bench.Now(), Bench.ElapsedUs(t0), Bench.Report(...)
+
+module Bench;
+
+public int<64> Now() {
+    return clock_ns();
+}
+
+// converte ns → us (arredonda para baixo)
+public int<64> ToUs(int<64> ns) {
+    return ns / 1000;
+}
+
+public int<64> ToMs(int<64> ns) {
+    return ns / 1000000;
+}
+
+// mede uma função por amostragem: best-of-N em us (evita o pior caso do SO)
+public int<64> BestUs(int<64> t0) {
+    return (Now() - t0) / 1000;
+}
+
+// relatório amigável: "nome: 123 us"
+public void ReportUs(string nome, int<64> ns) {
+    print(nome);
+    print(": ");
+    print(ns / 1000);
+    print(" us");
+    print("\n");
+}
+
+public void ReportMs(string nome, int<64> ns) {
+    print(nome);
+    print(": ");
+    print(ns / 1000000);
+    print(" ms");
+    print("\n");
+}

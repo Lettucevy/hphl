@@ -1,0 +1,8 @@
+// erro: tipo contravariante 'in T' não pode ser usado como retorno de método
+interface IConsumer<in T> {
+    T Get();
+}
+
+void Main() {
+    print(1);
+}

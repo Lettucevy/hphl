@@ -1,0 +1,33 @@
+// dbg_teste3.hphl: Debugger inspection of dynamic lists
+class Produto {
+	int cod;
+	string nome;
+
+	Produto(int c, string n) {
+		this.cod = c;
+		this.nome = n;
+	}
+}
+
+void Main() {
+	list<int> nums;
+	nums.Add(10);
+	nums.Add(20);
+	nums.Add(30);
+	list<string> nomes;
+	nomes.Add("Ana");
+	nomes.Add("Bia");
+	list<Produto> prods;
+	prods.Add(new Produto(1, "Caneta"));
+	prods.Add(new Produto(2, "Lapis"));
+	print("nums[2] = ");
+	print(nums[2]);
+	print("\n");
+	print("nomes[1] = ");
+	print(nomes[1]);
+	print("\n");
+	print("prods[1].cod = ");
+	print(prods[1].cod);
+	print("\n");
+	print("done\n");
+}

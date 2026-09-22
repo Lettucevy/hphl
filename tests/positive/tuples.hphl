@@ -1,0 +1,27 @@
+// tuples.hphl — tuplas com retorno múltiplo e destructuring (M10.1b)
+public (int, int) DivMod(int a, int b) {
+    return (a / b, a % b);
+}
+
+public (string, int) Jogador() {
+    return ("ana", 30);
+}
+
+void Main() {
+    var (q, r) = DivMod(17, 5);
+    print("q = ");
+    print(q);
+    print("\n");
+    print("r = ");
+    print(r);
+    print("\n");
+
+    var (nome, idade) = Jogador();
+    print("nome = ");
+    print(nome);
+    print("\n");
+    print("idade = ");
+    print(idade);
+    print("\n");
+    print("done");
+}

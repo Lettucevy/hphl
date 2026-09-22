@@ -1,0 +1,4 @@
+void Main() {
+    var x = Some(5);
+    print("unreachable\n");
+}

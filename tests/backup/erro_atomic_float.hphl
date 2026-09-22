@@ -1,0 +1,6 @@
+// erro_atomic_float.hphl — teste negativo: 'atomic' exige tipo inteiro
+
+void Main() {
+    atomic float f = 1.5;
+    print(f);
+}

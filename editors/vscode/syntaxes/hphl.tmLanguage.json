@@ -1,0 +1,97 @@
+{
+  "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+  "name": "HP-HL",
+  "scopeName": "source.hphl",
+  "fileTypes": ["hphl"],
+  "patterns": [
+    { "include": "#comments" },
+    { "include": "#strings" },
+    { "include": "#numbers" },
+    { "include": "#keywords" },
+    { "include": "#types" },
+    { "include": "#builtins" },
+    { "include": "#functions" },
+    { "include": "#punctuation" }
+  ],
+  "repository": {
+    "comments": {
+      "patterns": [
+        { "name": "comment.line.double-slash.hphl", "match": "//.*$" },
+        { "name": "comment.block.hphl", "begin": "/\\*", "end": "\\*/" }
+      ]
+    },
+    "strings": {
+      "patterns": [
+        {
+          "name": "string.quoted.triple.hphl",
+          "begin": "\"\"\"",
+          "end": "\"\"\"",
+          "patterns": [
+            { "name": "constant.character.escape.hphl", "match": "\\\\[abfnrtv\\\\'\\\"0-7]" }
+          ]
+        },
+        {
+          "name": "string.quoted.raw.hphl",
+          "begin": "r#\"",
+          "end": "\"#"
+        },
+        {
+          "name": "string.quoted.double.hphl",
+          "begin": "\"",
+          "end": "\"",
+          "patterns": [
+            { "name": "constant.character.escape.hphl", "match": "\\\\[abfnrtv\\\\'\\\"0-7]" }
+          ]
+        },
+        { "name": "string.quoted.single.hphl", "begin": "'", "end": "'" }
+      ]
+    },
+    "numbers": {
+      "patterns": [
+        {
+          "name": "constant.numeric.hphl",
+          "match": "\\b(0[xX][0-9a-fA-F]+|0[bB][01]+|\\d+\\.\\d+([eE][+-]?\\d+)?|\\d+([eE][+-]?\\d+)?)\\b"
+        }
+      ]
+    },
+    "keywords": {
+      "patterns": [
+        {
+          "name": "keyword.control.hphl",
+          "match": "\\b(if|else|switch|case|default|for|while|do|foreach|in|return|break|continue|match|when|try|catch|finally|throw|lock|spawn|async|await|task|channel|new|stack|heap|arena|pool|shared|threadlocal|atomic|volatile|parallel|mutex|condvar|semaphore|event|barrier|actor|derive|compiletime|reflect|specialize|depends|package|use|Ok|Err|Some|None|true|false|null)\\b"
+        },
+        {
+          "name": "storage.type.hphl",
+          "match": "\\b(fun|fn|let|mut|module|import|using|class|struct|interface|enum|extern|public|private|protected|internal|static|inline|readonly|const|var|ref|out|where|as|is|this|base|super|panic|assert)\\b"
+        }
+      ]
+    },
+    "types": {
+      "patterns": [
+        { "name": "storage.type.primitive.hphl", "match": "\\b(int|uint|float|double|f32|f64|bool|char|string|byte|ptr|u8|u16|u32|u64|i8|i16|i32|i64|isize|usize|void|any)\\b|\\bint<[0-9]+>\\b" },
+        { "name": "storage.type.composite.hphl", "match": "\\b(list|map|set|tuple|option|condvar)\\b" }
+      ]
+    },
+    "builtins": {
+      "patterns": [
+        { "name": "support.function.builtin.hphl", "match": "\\b(print|println|toString|clock_ns|clock_ms|sleep_ms|sqrt|sin|cos|tan|log|exp|floor|ceil|round|pow|abs|min|max|PI|E|args|length|gc_pressure|gc_collect|sha256|ed25519_verify|http_get|http_download|addr_of|mem_alloc|mem_free|mem_copy|mem_set|mem_read_i32|mem_write_i32|mem_read_f32|mem_write_f32)\\b" }
+      ]
+    },
+    "constants": {
+      "patterns": [
+        { "name": "constant.language.hphl", "match": "\\b(true|false|null)\\b" }
+      ]
+    },
+    "functions": {
+      "patterns": [
+        { "name": "entity.name.function.hphl", "match": "\\b[A-Za-z_][A-Za-z0-9_]*\\s*(?=\\()" },
+        { "name": "entity.name.function.method.hphl", "match": "\\.\\s*[A-Za-z_][A-Za-z0-9_]*\\s*(?=\\()" }
+      ]
+    },
+    "punctuation": {
+      "patterns": [
+        { "name": "punctuation.definition.hphl", "match": "[{}()\\[\\],;.:]" }
+      ]
+    }
+  }
+}

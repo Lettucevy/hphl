@@ -1,0 +1,14 @@
+// erro: campo do padrão de struct deve ser inteiro (float aqui)
+struct Ponto {
+  int x;
+  float y;
+}
+
+void Main() {
+  Ponto p = new Ponto(1, 2.5);
+  int r = match (p) {
+    Ponto(x: 1, y: 3) => 1,
+    _ => 2,
+  };
+  print(r, "\n");
+}

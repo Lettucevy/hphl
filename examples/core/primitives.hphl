@@ -1,0 +1,53 @@
+// primitives.hphl: Synchronization primitives (mutex, semaphore, event, barrier)
+// mutex, semaphore, event and barrier handles initialized locally.
+//
+// Expected output (deterministic):
+//   100      - 4 workers x 25 increments under mutex: zero lost updates
+//   4        - barrier(4): phase 2 executes only after ALL phase 1 workers
+//              finish -> each worker adds exactly 1 in phase 2
+//   1        - semaphore(2) exhausted; task blocks until Signal releases slot
+//   2        - event: task wakes up when Set() is signaled
+//   done
+
+shared int total = 0; // M11.1: escrita em spawn exige shared (global: memória compartilhada entre as tarefas
+shared int total2 = 0; // fase 2 (protegida pela barrier)
+
+void Main() {
+    mutex m;
+    barrier b(4);
+
+    parallel {
+        { for (int k = 0; k < 25; k++) { m.Lock(); total++; m.Unlock(); } }
+        { for (int k = 0; k < 25; k++) { m.Lock(); total++; m.Unlock(); } }
+        { for (int k = 0; k < 25; k++) { m.Lock(); total++; m.Unlock(); } }
+        { for (int k = 0; k < 25; k++) { m.Lock(); total++; m.Unlock(); } }
+    }
+    print(total); // 100 (mutex: sem atualização perdida)
+    print("\n");
+
+    parallel {
+        { b.Wait(); m.Lock(); total2++; m.Unlock(); }
+        { b.Wait(); m.Lock(); total2++; m.Unlock(); }
+        { b.Wait(); m.Lock(); total2++; m.Unlock(); }
+        { b.Wait(); m.Lock(); total2++; m.Unlock(); }
+    }
+    print(total2); // 4 (barrier: as 4 fases 1 acabaram antes de qualquer fase 2)
+    print("\n");
+
+    semaphore s(2);
+    s.Wait(); // esgota o contador (não bloqueia: ainda resta 1)
+    s.Wait(); // esgota (não bloqueia)
+    task<int> t = spawn { s.Wait(); return 1; }; // bloqueia até o Signal
+    s.Signal();
+    print(t.Wait()); // 1 (o Signal liberou a task)
+    print("\n");
+
+    event e;
+    task<int> t2 = spawn { e.Wait(); return 2; };
+    e.Set();
+    print(t2.Wait()); // 2 (o Set acordou a task)
+    print("\n");
+
+    print("done");
+    print("\n");
+}

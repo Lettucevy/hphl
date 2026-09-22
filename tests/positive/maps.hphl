@@ -1,0 +1,66 @@
+// maps.hphl — map<K,V> dinâmico (M10.1): tabela hash com Put/Get/Contains/Remove/Clear/Length
+void Main() {
+    // map com chave string
+    map<string, int> ages;
+    print("empty length: ");
+    print(ages.Length);
+    print("\n");
+    ages.Put("ana", 30);
+    ages.Put("bia", 25);
+    ages.Put("caio", 41);
+    print("length = ");
+    print(ages.Length);
+    print("\n");
+    print("ana = ");
+    print(ages.Get("ana"));
+    print("\n");
+    print("caio = ");
+    print(ages.Get("caio"));
+    print("\n");
+    print("has bia = ");
+    print(ages.Contains("bia"));
+    print("\n");
+    print("has zeca = ");
+    print(ages.Contains("zeca"));
+    print("\n");
+
+    // sobrescrever
+    ages.Put("ana", 31);
+    print("ana nova = ");
+    print(ages.Get("ana"));
+    print("\n");
+    print("length ainda = ");
+    print(ages.Length);
+    print("\n");
+
+    // remover
+    bool removed = ages.Remove("bia");
+    print("removed = ");
+    print(removed);
+    print("\n");
+    print("length apos remove = ");
+    print(ages.Length);
+    print("\n");
+    print("has bia agora = ");
+    print(ages.Contains("bia"));
+    print("\n");
+
+    // map com chave int
+    map<int, string> names;
+    names.Put(1, "um");
+    names.Put(2, "dois");
+    names.Put(3, "tres");
+    print("names[2] = ");
+    print(names.Get(2));
+    print("\n");
+    print("names length = ");
+    print(names.Length);
+    print("\n");
+
+    // limpar
+    names.Clear();
+    print("apos clear = ");
+    print(names.Length);
+    print("\n");
+    print("done");
+}

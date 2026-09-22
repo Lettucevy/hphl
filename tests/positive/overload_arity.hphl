@@ -1,0 +1,30 @@
+// overload_arity.hphl - overload por aridade (resolução por arity):
+// construtores, métodos e funções globais com aridades distintas coexistem
+// (labels incluem a aridade). Mesma aridade = erro (ver erro_dup_*).
+class Box {
+  int v;
+  Box() { this.v = 0; }
+  Box(int x) { this.v = x; }
+  void Set(int x) { this.v = x; }
+  void Set(int x, int y) { this.v = x + y; }
+}
+
+int Add(int a, int b) { return a + b; }
+int Add(int a, int b, int c) { return a + b + c; }
+
+void Main() {
+  var b0 = new Box();
+  assert(b0.v == 0);
+  var b1 = new Box(7);
+  assert(b1.v == 7);
+
+  b0.Set(5);
+  assert(b0.v == 5);
+  b0.Set(10, 20);
+  assert(b0.v == 30);
+
+  assert(Add(1, 2) == 3);
+  assert(Add(1, 2, 3) == 6);
+
+  print("overload_arity ok\n");
+}

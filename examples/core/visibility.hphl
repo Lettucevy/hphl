@@ -1,0 +1,35 @@
+// visibility.hphl - namespaces, aliases and internal visibility (Milestone 2)
+// Qualified names (Mod.X), `import X as Alias`, and public/internal checks.
+
+import ModCore as MC;
+
+void Main() {
+    // qualified function call through the alias
+    print("open = ");
+    print(MC.open());
+    print("\n");
+
+    // qualified global variable
+    print("baseScore = ");
+    print(MC.baseScore);
+    print("\n");
+
+    // qualified enum constant (Mod.Enum.CONST)
+    int st = MC.State.RUNNING;
+    print("state = ");
+    print(st);
+    print("\n");
+
+    // qualified type in declarations and `new`
+    MC.Counter c = new MC.Counter(5);
+    print("bump = ");
+    print(c.Bump());
+    print("\n");
+
+    // same module reached by its declared name (no alias needed)
+    print("open2 = ");
+    print(ModCore.open());
+    print("\n");
+
+    print("done\n");
+}

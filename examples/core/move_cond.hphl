@@ -1,0 +1,27 @@
+// move_cond.hphl: Branch-sensitive dataflow analysis for USE AFTER MOVE:
+// move in one branch does NOT poison other branches or un-dominated uses
+class P {
+    public int v;
+}
+
+void Main() {
+    heap P a;
+    heap P b;
+    heap P d;
+    a.v = 1;
+
+    int c = 5;
+    if (c > 3) {
+        b = a;            // move no ramo do então
+        println(b.v);
+    } else {
+        println(a.v);     // ramo sem move: origem livremente utilizável
+    }
+
+    int k = 0;
+    if (k > 3) {
+        d = a;            // não executa (k=0)
+    } else {
+        println(a.v);     // a segue válida fora do ramo que moveu
+    }
+}

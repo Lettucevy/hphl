@@ -1,0 +1,11 @@
+class Caixa<T> {
+  T valor;
+
+  Caixa(T v) {
+    this.valor = v;
+  }
+}
+
+void Main() {
+  var c = new Caixa<int, string>(1);
+}

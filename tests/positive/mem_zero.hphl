@@ -1,0 +1,11 @@
+// mem_zero.hphl - zera bytes (sem ambiguidade de offset do mem_fill).
+void Main() {
+    ptr p = mem_alloc(16);
+    mem_poke_u32(p, 0, 287454020);
+    mem_poke_u32(p, 4, 305419896);
+    mem_zero(p, 4);
+    println(toString(mem_peek_u32(p, 0)));
+    println(toString(mem_peek_u32(p, 4)));
+    mem_free(p);
+    println("mem-zero-done");
+}

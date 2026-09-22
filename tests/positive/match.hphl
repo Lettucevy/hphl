@@ -1,0 +1,94 @@
+// match.hphl - enums with data (sum types) and pattern matching (spec seção 13)
+// Variants may carry payloads (Connected(int ping, string host)); a rich enum
+// value is a cell handle, matched with bindings, `when` guards and `_`.
+
+enum NetworkState {
+    Disconnected,
+    Connecting(string addr),
+    Connected(int ping, string host),
+}
+
+string describe(NetworkState s) {
+    return match (s) {
+        NetworkState.Disconnected => "off",
+        NetworkState.Connecting(addr) => addr,
+        NetworkState.Connected(ping, host) when ping >= 1000 => "slow",
+        NetworkState.Connected(ping, host) => "fast",
+    };
+}
+
+int bandwidth(NetworkState s) {
+    int result = match (s) {
+        NetworkState.Disconnected => 0,
+        NetworkState.Connecting(addr) => 10,
+        NetworkState.Connected(ping, host) when ping >= 1000 => 100,
+        NetworkState.Connected(ping, host) => 200,
+    };
+    return result;
+}
+
+// match sobre inteiros: faixas 1..N e caso `_` obrigatório (exaustivo)
+string classify(int value) {
+    return match (value) {
+        1 => "one",
+        -1 => "negative one",
+        2..5 => "small",
+        10..100 => "big",
+        _ => "other",
+    };
+}
+
+void Main() {
+    NetworkState a = NetworkState.Connected(5000, "srv-a");
+    NetworkState b = NetworkState.Connecting("10.0.0.1");
+    NetworkState c = NetworkState.Disconnected;
+
+    print("a = ");
+    print(describe(a));
+    print("\n");
+    print("b = ");
+    print(describe(b));
+    print("\n");
+    print("c = ");
+    print(describe(c));
+    print("\n");
+
+    print("bandwidth a = ");
+    print(bandwidth(a));
+    print("\n");
+    print("bandwidth b = ");
+    print(bandwidth(b));
+    print("\n");
+
+    // variante de enum rico sem dados também é célula; comparação por tag
+    if (a == c) {
+        print("same\n");
+    } else {
+        print("different\n");
+    }
+
+    // match-instrução com bindings e guard no bloco
+    match (a) {
+        NetworkState.Connected(ping, host) when ping > 0 => {
+            print("ping positive: ");
+            print(ping);
+            print("\n");
+        }
+        _ => {
+            print("not connected\n");
+        }
+    }
+
+    print(classify(1));
+    print("\n");
+    print(classify(7));
+    print("\n");
+    print(classify(5));
+    print("\n");
+    print(classify(10000));
+    print("\n");
+    print(classify(-1));
+    print("\n");
+
+    print("done\n");
+}

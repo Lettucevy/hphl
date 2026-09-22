@@ -1,0 +1,16 @@
+// channel_sendable.hphl: Classes with `derive Sendable` can pass through channels
+// (M11.3 Channel sendable, spec §3/§10)
+
+derive Sendable
+class Msg {
+    public int id;
+    Msg(int id) { this.id = id; }
+}
+
+void Main() {
+    channel<Msg> a = new channel<Msg>(4);
+    spawn {
+        a.Send(new Msg(42));
+    }
+    println(a.Receive().id);
+}

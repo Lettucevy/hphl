@@ -1,0 +1,7 @@
+﻿// erro_opt_index_type.hphl
+// '?[' exige array, list ou string
+
+void Main() {
+    int num = 123;
+    var x = num?[0];
+}

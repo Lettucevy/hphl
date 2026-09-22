@@ -1,0 +1,13 @@
+// erro_out_read_loop.hphl — leitura de 'out' dentro de laço (SPEC §5.2):
+// o corpo do while pode não rodar nenhuma vez, então a leitura da condição
+// acontece antes de qualquer atribuição → erro conservador e correto
+public void Loop(out int r) {
+  while (r < 10) { // erro: lê 'r' sem atribuição definida
+    r += 1;
+  }
+}
+
+public void Main() {
+  int x = 0;
+  Loop(out x);
+}

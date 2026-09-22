@@ -1,0 +1,7 @@
+// erro_bitwise_not_type.hphl
+// Operador '~' exige inteiro
+
+void Main() {
+    string s = "hello";
+    var x = ~s;
+}

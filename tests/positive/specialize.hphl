@@ -1,0 +1,21 @@
+// specialize.hphl — especialização manual (M10 v0.46, spec §11):
+// `specialize T;` força a monomorfização mesmo sem uso posterior;
+// erros de aridade/args/corpo saem na compilação
+class Buffer<T, const int N> {
+    public T[N] data;
+    public int Cap() { return N; }
+    public void Set(int i, T v) { data[i] = v; }
+    public T Get(int i) { return data[i]; }
+}
+
+specialize Buffer<int, 64>;
+specialize Buffer<float, 16>;
+
+void Main() {
+    Buffer<int, 64> b;
+    b.Set(63, 64);
+    print(b.Cap());
+    println();
+    print(b.Get(63));
+    println();
+}

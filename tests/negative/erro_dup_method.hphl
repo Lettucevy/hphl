@@ -1,0 +1,12 @@
+// erro_dup_method.hphl - overload exige aridades distintas: dois métodos
+// com mesmo nome e mesma aridade são rejeitados (antes: erro críptico no
+// assembler por label duplicado).
+class Box {
+  int v;
+  void Set(int x) { this.v = x; }
+  void Set(string s) { this.v = 99; }
+}
+
+void Main() {
+  print("nope\n");
+}

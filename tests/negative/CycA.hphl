@@ -1,0 +1,4 @@
+// CycA.hphl - uma metade de um ciclo de dependência (teste negativo)
+module CycA depends on CycB;
+
+public int a() { return 1; }

@@ -1,0 +1,66 @@
+// ===========================================================================
+// match_expr.hphl: match as expression and subject binding
+// ===========================================================================
+
+enum NetworkState {
+  Disconnected,
+  Connecting(string addr),
+  Connected(int ping)
+}
+
+// match in `return`: arm evaluation becomes the returned value
+public string Classificar(NetworkState s) {
+  return match (s) {
+    Connected(ping) when ping < 50 => "rapido",
+    Connected(_) => "lento",
+    _ => "outro",
+  };
+}
+
+// match as an expression in variable initialization
+public int Nivel(NetworkState s) {
+  return match (s) {
+    Connected(ping) when ping > 500 => 3,
+    Connected(ping) when ping > 100 => 2,
+    Connected(_) => 1,
+    _ => 0,
+  };
+}
+
+// subject binding: `state @ pattern` binds the subject value
+public string Detalhe(NetworkState s) {
+  return match (s) {
+    estado @ Connected(ping) => Classificar(estado),
+    _ => "sem conexao",
+  };
+}
+
+public int Main() {
+  print(Classificar(NetworkState.Connected(10)));
+  print("\n");
+  print(Classificar(NetworkState.Connected(200)));
+  print("\n");
+  print(Classificar(NetworkState.Connecting("10.0.0.1")));
+  print("\n");
+
+  print(Nivel(NetworkState.Connected(300)));
+  print("\n");
+  print(Nivel(NetworkState.Connected(150)));
+  print("\n");
+  print(Nivel(NetworkState.Connected(30)));
+  print("\n");
+
+  // match expression in initializer
+  NetworkState s = NetworkState.Connected(90);
+  int double_ping = 2 * match (s) {
+    Connected(ping) => ping,
+    _ => 0,
+  };
+  print(double_ping);
+  print("\n");
+
+  print(Detalhe(NetworkState.Connected(80)));
+  print("\n");
+
+  return 0;
+}

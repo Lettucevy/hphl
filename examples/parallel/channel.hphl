@@ -1,0 +1,40 @@
+// channel.hphl: Thread communication via typed channel<T>
+// Fixed-capacity ring buffer; Send blocks when full and Receive blocks when empty.
+// bloqueia quando vazia. Dois canais: a (produtor->consumidor) e b
+// (consumidor->Main, barreira lógica sem corrida).
+shared int acc = 0; // M10.4: escrita dentro de spawn exige shared (thread race)
+
+void Main() {
+    channel<int> a = new channel<int>(4); // buffer de 4 força bloqueio do Send
+    channel<int> b = new channel<int>(2);
+
+    // producer: transmits values followed by termination signal
+    spawn task {
+        int i = 1;
+        while (i <= 5) {
+            a.Send(i);
+            i++;
+        }
+        a.Send(-1); // fim da sequência
+    }
+
+    // consumer: computes sum and notifies Main upon completion
+    spawn task {
+        int x = a.Receive();
+        while (x != -1) {
+            acc += x;
+            x = a.Receive();
+        }
+        b.Send(-2); // marcador de término (único remetente de b)
+    }
+
+    // Main awaits consumer completion (logical synchronization via channel)
+    int t = b.Receive(); // -2
+    print("marcador = ");
+    print(t);
+    print("\n");
+    print("soma = ");
+    print(acc); // 1+2+3+4+5 = 15
+    print("\n");
+    print("done\n");
+}

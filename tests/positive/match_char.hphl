@@ -1,0 +1,16 @@
+// match_char.hphl - match com padroes char (literais, faixa, '_').
+int C(char c) {
+    return match (c) {
+        'A' => 1,
+        'a'..'z' => 2,
+        _ => -1,
+    };
+}
+
+void Main() {
+    println(toString(C('A')));
+    println(toString(C('m')));
+    println(toString(C('0')));
+    println(toString(C('Z')));
+    println("match-char-done");
+}

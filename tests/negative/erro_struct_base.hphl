@@ -1,0 +1,3 @@
+class B { }
+struct S : B { }
+void Main() { }

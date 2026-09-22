@@ -1,0 +1,8 @@
+// erro_lock_tipo.hphl — teste negativo: lock exige referência de classe
+
+void Main() {
+    int n = 5;
+    lock (n) {
+        print(n);
+    }
+}

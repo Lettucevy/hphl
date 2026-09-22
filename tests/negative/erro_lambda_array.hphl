@@ -1,0 +1,8 @@
+// erro_lambda_array.hphl
+// Lambda não captura array local (env de 8 bytes/slot)
+
+void Main() {
+    int[3] arr;
+    var f = () => arr[0];
+    println(f());
+}

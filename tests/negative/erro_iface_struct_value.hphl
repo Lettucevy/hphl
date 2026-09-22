@@ -1,0 +1,15 @@
+// erro_iface_struct_value.hphl - struct (sem vptr p/ dispatch) nao pode
+// ser usado como valor de tipo interface.
+interface Repo<T> {
+  T Get();
+}
+
+struct SRepo : Repo<int> {
+  int value;
+  int Get() { return this.value; }
+}
+
+void Main() {
+  Repo<int> r = new SRepo();
+  print("nope\n");
+}

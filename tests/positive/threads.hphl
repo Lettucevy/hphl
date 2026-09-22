@@ -1,0 +1,74 @@
+// threads.hphl — Milestone 2: 'spawn task { }' e 'parallel { }' com threads
+// reais (CreateThread no runtime), 'atomic' e 'lock' por-objeto.
+//
+// spawn    → tarefa assíncrona sem espera (join implícito no fim de Main).
+// parallel → barreira: o bloco espera TODAS as tarefas pendentes depois de
+//            lançar as suas (runtime.hphl_join_tasks). Por isso o exemplo
+//            imprime depois de um parallel: a saída é determinística.
+// Regra M2: corpos de spawn/parallel usam apenas globais + métodos (sem
+// captura de locais); a impressão só acontece em Main após uma barreira.
+
+atomic int som = 0;
+
+class Banco {
+    atomic int saldo;
+
+    Banco(int v) {
+        this.saldo = v;
+    }
+
+    void Creditar(int n) {
+        lock (this) {
+            this.saldo += n;
+        }
+    }
+
+    int Obter() {
+        return this.saldo;
+    }
+}
+
+Banco ga;
+Banco gb;
+
+void Main() {
+    // ---- spawn: 3 tarefas somando no mesmo atômico (sem lock) ----
+    spawn task {
+        for (int i = 0; i < 30000; i++) som++;
+    }
+    spawn task {
+        for (int i = 0; i < 30000; i++) som++;
+    }
+    spawn task {
+        for (int i = 0; i < 30000; i++) som++;
+    }
+
+    // ---- lock por objeto em threads diferentes (globais compartilhadas;
+    //      spawns não capturam locais no M2) ----
+    ga = new Banco(0);
+    gb = new Banco(0);
+    spawn task {
+        for (int i = 0; i < 1000; i++) ga.Creditar(1);
+    }
+    spawn task {
+        for (int i = 0; i < 1000; i++) gb.Creditar(2);
+    }
+
+    // ---- parallel: barreira (2 tarefas som). Depois deste bloco todas as
+    //      tarefas (inclusive os spawns acima) terminaram — prints seguros.
+    parallel {
+        som += 1;
+        som += 2;
+    }
+
+    print("somando = ");
+    print(som);
+    print("\n");
+    print("a = ");
+    print(ga.Obter());
+    print("\n");
+    print("b = ");
+    print(gb.Obter());
+    print("\n");
+    print("done\n");
+}

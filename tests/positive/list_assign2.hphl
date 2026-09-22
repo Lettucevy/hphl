@@ -1,0 +1,16 @@
+void Main() {
+    list<int> xs;
+    xs.Add(1);
+    xs.Add(2);
+    print(xs.Length);
+
+    list<int> ys;
+    ys.Add(10);
+    ys.Add(20);
+    ys.Add(30);
+    ys.Add(40);
+    print(ys.Length);
+
+    xs = ys;
+    print(xs.Length);
+}

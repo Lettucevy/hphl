@@ -1,0 +1,42 @@
+// cancel.hphl — task.Cancel() / Task.IsCancelled (spec §10, v0.23.0).
+//
+// Cancelamento COOPERATIVO: t.Cancel() só sinaliza a tarefa (sem preempção);
+// o corpo observa o sinal em `Task.IsCancelled` e decide parar. A saída é
+// determinística:
+//
+//   print(Task.IsCancelled) fora de tarefa → 0
+//   t1 nunca cancelada → devolve o payload (42) e Wait() repetido reusa
+//   t2 cancelada antes do spin terminar → o spin SÓ sai pelo flag → 7
+
+async int LongWork(int n) {
+    for (int i = 0; i < 2000000; i++) { }
+    if (Task.IsCancelled != 0) {
+        return -1;
+    }
+    return n * 2;
+}
+
+// Spin: sai só quando o sinal de cancelamento é visto (com ou sem Cancel antes
+// do escalonamento, o único caminho de saída é o flag setado).
+async int SpinUntilCancel(int n) {
+    while (Task.IsCancelled == 0) { }
+    return n;
+}
+
+void Main() {
+    print(Task.IsCancelled);
+    print("\n");
+
+    task<int> t1 = LongWork(21);
+    print(t1.Wait());          // 42 (rodou até o fim; sem cancelamento)
+    print("\n");
+    t1.Cancel();               // conclusão já ocorreu → sinal sem efeito
+    print(t1.Wait());          // 42 (Wait multi-use continua devolvendo o payload)
+    print("\n");
+
+    task<int> t2 = SpinUntilCancel(7);
+    t2.Cancel();               // pode chegar antes OU depois do worker escalonar
+    print(t2.Wait());          // 7 (spin só termina via flag)
+    print("\n");
+    print("done\n");
+}

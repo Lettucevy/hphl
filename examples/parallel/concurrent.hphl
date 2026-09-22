@@ -1,0 +1,78 @@
+// concurrent.hphl: Atomic operations and lock (obj) synchronization
+//
+// atomic: leitura normal, escrita com lock xchg, +=/-= com lock xadd,
+//         ++/-- com lock xadd; apenas inteiros; ref/out vetado.
+// lock:   seção crítica (spinlock global no runtime — simplificação M2:
+//         exclusão global, correta porém serializada; por-objeto com
+//         'parallel spawn' fica para o runtime de threads).
+
+atomic int contador = 0;
+
+class Caixa {
+    atomic int saldo;
+
+    Caixa(int v) {
+        this.saldo = v;
+    }
+
+    void Adicionar(int n) {
+        lock (this) {
+            this.saldo += n;
+        }
+    }
+
+    int Obter() {
+        return this.saldo;
+    }
+}
+
+void Main() {
+    // --- atomic global: ++, +=, -=, = ---
+    contador++;
+    contador += 5;
+    contador -= 2;
+    print("global = ");
+    print(contador);
+    print("\n");
+    contador = 10;
+    contador += 3;
+    print("global2 = ");
+    print(contador);
+    print("\n");
+
+    // --- atomic local ---
+    atomic int local = 100;
+    local -= 40;
+    local++;
+    print("local = ");
+    print(local);
+    print("\n");
+
+    // --- atomic campo de classe + lock ---
+    Caixa cx = new Caixa(50);
+    cx.Adicionar(25);
+    print("saldo = ");
+    print(cx.Obter());
+    print("\n");
+
+    // --- pré/pós incremento como expressão (valor retornado) ---
+    atomic int e = 7;
+    int antigo = e++;
+    print("antigo = ");
+    print(antigo);
+    print("\n");
+    int novo = ++e;
+    print("novo = ");
+    print(novo);
+    print("\n");
+
+    // --- lock com corpo simples: atribuição protegida ---
+    atomic int protegido = 0;
+    lock (cx) {
+        protegido = 99;
+    }
+    print("protegido = ");
+    print(protegido);
+    print("\n");
+    print("done\n");
+}

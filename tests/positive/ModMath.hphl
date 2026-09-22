@@ -1,0 +1,7 @@
+// ModMath.hphl - helper module imported by ModLib (Milestone 2)
+
+module ModMath;
+
+int Triple(int x) {
+    return x * 3;
+}

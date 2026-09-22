@@ -1,0 +1,40 @@
+// channel.hphl — channel<T> (spec §10, v0.22.2): comunicação entre threads.
+// Fila circular de capacidade fixa; Send bloqueia quando cheia e Receive
+// bloqueia quando vazia. Dois canais: a (produtor->consumidor) e b
+// (consumidor->Main, barreira lógica sem corrida).
+shared int acc = 0; // M10.4: escrita dentro de spawn exige shared (thread race)
+
+void Main() {
+    channel<int> a = new channel<int>(4); // buffer de 4 força bloqueio do Send
+    channel<int> b = new channel<int>(2);
+
+    // produtor: 5 valores + fim de sequência
+    spawn task {
+        int i = 1;
+        while (i <= 5) {
+            a.Send(i);
+            i++;
+        }
+        a.Send(-1); // fim da sequência
+    }
+
+    // consumidor: soma 1..5 e avisa Main ao terminar
+    spawn task {
+        int x = a.Receive();
+        while (x != -1) {
+            acc += x;
+            x = a.Receive();
+        }
+        b.Send(-2); // marcador de término (único remetente de b)
+    }
+
+    // Main espera o consumidor terminar (barreira lógica via channel)
+    int t = b.Receive(); // -2
+    print("marcador = ");
+    print(t);
+    print("\n");
+    print("soma = ");
+    print(acc); // 1+2+3+4+5 = 15
+    print("\n");
+    print("done\n");
+}

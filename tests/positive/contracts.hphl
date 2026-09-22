@@ -1,0 +1,50 @@
+// contracts.hphl - item 2.13 (A4): require/ensure.
+// Preconditions na entrada; postconditions em cada return com `result`.
+int Divide(int a, int b)
+    require b != 0
+    ensure result >= 0
+{
+    return a / b;
+}
+
+int Abs(int x)
+    require x != 0
+    require x > -100
+    ensure result > 0
+    ensure result < 100
+{
+    if (x > 0) return x;
+    return 0 - x;
+}
+
+class Acc {
+  int total;
+  Acc() { total = 0; }
+  void Add(int x)
+      require x > 0
+  {
+      total = total + x;
+  }
+  int Get()
+      ensure result >= 0
+  {
+      return total;
+  }
+}
+
+void Log(string s)
+    ensure true
+{
+    print(s);
+}
+
+void Main() {
+  assert(Divide(20, 4) == 5);
+  assert(Divide(7, 2) == 3);
+  assert(Abs(-5) == 5);
+  assert(Abs(7) == 7);
+  var a = new Acc();
+  a.Add(10);
+  assert(a.Get() == 10);
+  Log("contracts ok\n");
+}

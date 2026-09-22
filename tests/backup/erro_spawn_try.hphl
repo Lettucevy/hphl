@@ -1,0 +1,12 @@
+// erro_spawn_try.hphl — teste negativo: try/catch dentro de 'spawn' não é
+// suportado no M2 (handler de exceção é único no processo)
+
+void Main() {
+    spawn task {
+        try {
+            print(1 / 0);
+        } catch (int e) {
+            print(e);
+        }
+    }
+}

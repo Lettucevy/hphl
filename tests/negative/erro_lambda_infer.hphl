@@ -1,0 +1,7 @@
+// erro_lambda_infer.hphl
+// Parâmetro sem restrição de tipo exige anotação
+
+void Main() {
+    var f = (s) => s;
+    println(f("hi"));
+}

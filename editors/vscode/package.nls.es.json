@@ -1,0 +1,18 @@
+{
+  "extension.description": "Soporte oficial para el lenguaje HP-HL en VS Code y Cursor con LSP, depurador DAP, resaltado de sintaxis y snippets.",
+  "config.title": "HP-HL",
+  "config.compilerPath.description": "Ruta al ejecutable del compilador hphlc. Si está vacío, busca en bin/hphlc(.exe) o en el PATH del sistema.",
+  "config.backend.description": "Backend de compilación predeterminado: x64 (nativo rápido), llvm (optimizado con SIMD) o ir (LLVM IR textual).",
+  "config.trace.server.description": "Nivel de registro de rastreo para mensajes del protocolo LSP.",
+  "command.runFile": "HP-HL: Ejecutar Archivo",
+  "command.debugFile": "HP-HL: Depurar Archivo",
+  "command.selectBackend": "HP-HL: Cambiar Backend",
+  "command.buildFile": "HP-HL: Compilar Archivo Actual",
+  "command.restartLsp": "HP-HL: Reiniciar Servidor de Lenguaje (LSP)",
+  "debug.label": "Depurador HPHL",
+  "debug.program.description": "Ruta al archivo .hphl principal.",
+  "debug.args.description": "Argumentos pasados al programa durante la ejecución.",
+  "debug.cwd.description": "Directorio de trabajo para la ejecución del programa.",
+  "debug.stopOnEntry.description": "Pausar automáticamente en la primera línea de Main.",
+  "debug.launch.name": "HP-HL: Iniciar Depuración (Archivo Actual)"
+}

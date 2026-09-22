@@ -1,0 +1,39 @@
+module test_deprecated;
+
+[[deprecated("use NovaFuncao instead")]]
+int FuncaoAntiga() {
+    return 42;
+}
+
+[[deprecated]]
+class ClasseAntiga {
+    public int Valor;
+    public ClasseAntiga(int v) { Valor = v; }
+}
+
+class Servico {
+    [[deprecated("use MetodoNovo")]]
+    public int MetodoAntigo() {
+        return 100;
+    }
+}
+
+void Main() {
+    // Uso com aviso esperado:
+    int a = FuncaoAntiga();
+    ClasseAntiga c = new ClasseAntiga(a);
+    Servico s = new Servico();
+    int b = s.MetodoAntigo();
+
+    // Uso com supressão de aviso:
+    [[suppress_deprecation]]
+    {
+        int x = FuncaoAntiga();
+        ClasseAntiga c2 = new ClasseAntiga(x);
+        int y = s.MetodoAntigo();
+    }
+
+    print("resultado: ");
+    print(b + c.Valor);
+    print("\n");
+}

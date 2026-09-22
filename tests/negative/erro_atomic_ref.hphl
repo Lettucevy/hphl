@@ -1,0 +1,11 @@
+// erro_atomic_ref.hphl — teste negativo: endereço de 'atomic' não escapa (ref/out)
+
+void Bumpa(out int v) {
+    v += 1;
+}
+
+void Main() {
+    atomic int x = 0;
+    Bumpa(out x);
+    print(x);
+}

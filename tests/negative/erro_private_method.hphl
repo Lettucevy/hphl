@@ -1,0 +1,8 @@
+class Conta {
+    private void Ajustar(int v) {}
+    public void Segura() { this.Ajustar(1); }
+}
+void Main() {
+    Conta c;
+    c.Ajustar(5);
+}

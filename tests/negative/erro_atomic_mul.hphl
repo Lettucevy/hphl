@@ -1,0 +1,8 @@
+// erro_atomic_mul.hphl — teste negativo: atomic não suporta *= (nem /=, %=)
+
+atomic int cont = 10;
+
+void Main() {
+    cont *= 3;
+    print(cont);
+}

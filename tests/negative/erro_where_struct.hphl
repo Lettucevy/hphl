@@ -1,0 +1,13 @@
+// erro: constraint 'struct' violada pelo argumento de tipo 'T=Node'
+class Node {
+    public int X;
+}
+
+T TakeStruct<T>(T v) where T : struct {
+    return v;
+}
+
+void Main() {
+    Node n = new Node();
+    TakeStruct(n);
+}

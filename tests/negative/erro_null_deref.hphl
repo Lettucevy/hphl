@@ -1,0 +1,10 @@
+// erro_null_deref.hphl — acesso direto a campo de possivelmente-null
+// sem checagem (M11.7 Null Analysis, spec §3)
+class P {
+    public int v;
+}
+
+void Main() {
+    P p = null;
+    println(p.v);
+}

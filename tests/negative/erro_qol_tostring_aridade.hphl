@@ -1,0 +1,6 @@
+module erro_qol_tostring_aridade;
+
+// M5 (v0.36.0) negativo: toString exige exatamente 1 argumento
+void Main() {
+    print(toString());
+}

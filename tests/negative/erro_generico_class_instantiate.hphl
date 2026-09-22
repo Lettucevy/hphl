@@ -1,0 +1,8 @@
+// erro: constraint 'class' violada pelo argumento de tipo 'T=int'
+class Box<T> where T : class {
+    public T Val;
+}
+
+void Main() {
+    Box<int> b = new Box<int>();
+}

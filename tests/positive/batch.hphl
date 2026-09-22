@@ -1,0 +1,35 @@
+// batch.hphl — `parallel foreach (x in xs) batch: N` (spec §10, v0.23.2).
+//
+// Com `batch: N` o espaço de iterações é dividido em chunks CONTÍGUOS de
+// N iterações, um por tarefa (N=4 sobre 20 elementos → 5 chunks:
+// [0..3][4..7][8..11][12..15][16..19]). Sem `batch:`, o modo STRIED passa a
+// ser ADAPTATIVO (v0.23.2): P = min(workers, N) em vez de fixar 4.
+// Acumuladores atômicos por operador composto (+= → lock xaddq, RMW única):
+// cada índice entra exatamente uma vez → somas determinísticas.
+
+atomic int somaBatch = 0;
+atomic int somaList = 0;
+int[20] nums;
+
+void Main() {
+    list<int> vals;                 // list LOCAL (sujeito do parallel foreach)
+    for (int i = 0; i < 20; i++) {
+        nums[i] = i + 1;            // 1..20
+        vals.Add(i * 10);           // 0,10,...,190
+    }
+
+    parallel foreach (var x in nums) batch: 4 {
+        somaBatch += x;             // 1..20 = 210 (5 chunks contíguos)
+    }
+    parallel foreach (var y in vals) batch: 7 {
+        somaList += y;              // 10*(0+..+19) = 1900 (3 chunks)
+    }
+
+    print("soma batch = ");
+    print(somaBatch);
+    print("\n");
+    print("soma list = ");
+    print(somaList);
+    print("\n");
+    print("done\n");
+}

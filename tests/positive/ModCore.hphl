@@ -1,0 +1,39 @@
+// ModCore.hphl - module with public/internal visibility (Milestone 2)
+// `internal` members are only visible inside this file; `public` is the
+// default and can be used from any importing file.
+
+module ModCore;
+
+public class Counter {
+    int value;
+
+    Counter(int v) {
+        this.value = v;
+    }
+
+    int Get() {
+        return this.value;
+    }
+
+    int Bump() {
+        this.value = this.value + 1;
+        return this.value;
+    }
+}
+
+internal int secret() {
+    return 42;
+}
+
+public int open() {
+    // internal is visible within the module itself
+    return secret() + 1;
+}
+
+public enum State {
+    IDLE,
+    RUNNING,
+}
+
+public int baseScore = 100;
+internal int hiddenScore = 7;

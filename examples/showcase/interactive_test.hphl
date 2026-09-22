@@ -1,0 +1,7 @@
+void Main() {
+    print("Digite seu nome: ");
+    string nome = read_line();
+    print("Ola, ");
+    print(nome);
+    println("! Bem-vindo ao HPHL!");
+}

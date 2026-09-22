@@ -1,0 +1,96 @@
+// Advanced Pattern Matching and Enums
+derive Equatable, Serializable
+enum Codigo {
+  OK = 200,
+  CRIADO = 201,
+  ERRO = 500,
+}
+struct Position {
+  int x;
+  int y;
+  int z;
+  Position(int x, int y, int z) { this.x = x; this.y = y; this.z = z; }
+}
+
+derive Equatable, Comparable
+enum Dia {
+  SEGUNDA = 1,
+  TERCA,
+  QUARTA,
+  QUINTA,
+}
+
+enum Estado {
+  Idle,
+  Ativo,
+  Pronto,
+}
+
+int Detec(Position p) {
+  return match (p) {
+    Position(x: 1, y: 2, z: _) => 10,
+    Position(x: px, y: 0, z: 0) => px,
+    _ => -1,
+  };
+}
+
+int Tag(Dia d) {
+  return match (d) {
+    Dia.SEGUNDA => 1,
+    Dia.TERCA => 2,
+    Dia.QUARTA => 3,
+    Dia.QUINTA => 4,
+  };
+}
+
+int EstadoNum(Estado e) {
+  return match (e) {
+    Estado.Idle => 0,
+    Estado.Ativo => 1,
+    Estado.Pronto => 2,
+  };
+}
+
+void Main() {
+  Position a = new Position(1, 2, 9);
+  print(Detec(a), "\n");
+  Position b = new Position(7, 0, 0);
+  print(Detec(b), "\n");
+  Position c = new Position(5, 5, 5);
+  print(Detec(c), "\n");
+
+  // simple enum cast to integer
+  print((int)Dia.SEGUNDA, "\n");
+
+  // derive Comparable: enum can use comparison operators (<, >, ==)
+  Dia d = Dia.QUARTA;
+  if (d >= Dia.TERCA) { print(Tag(d), "\n"); }
+  if (d == Dia.QUARTA) { print(4, "\n"); }
+
+  // Enum.FromInt -> Option<T>
+  Option<Dia> od = Dia.FromInt(3);
+  print(match (od) { Some(v) => Tag(v), None => -1 }, "\n");
+  Option<Dia> own = Dia.FromInt(99);
+  print(match (own) { Some(v) => Tag(v), None => -1 }, "\n");
+
+  // subject binding using '@'
+  Estado e = Estado.Idle;
+  int r = match (e) {
+    e2 @ Estado.Idle => 100 + EstadoNum(e2),
+    Estado.Ativo => 200,
+    Estado.Pronto => 300,
+  };
+  print(r, "\n");
+
+  // subject bind combined with struct pattern
+  int s = match (b) {
+    p @ Position(x: px, y: 0, z: zz) => px + zz * 100,
+    _ => -1,
+  };
+  print(s, "\n");
+
+  // Serialize() (via derive Serializable): integer representation of variant
+  Codigo code = Codigo.ERRO;
+  print(code.Serialize(), "\n");
+  print((int)Codigo.OK, "\n");
+}

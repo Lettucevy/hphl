@@ -1,0 +1,10 @@
+// erro_iface_new.hphl - interface nao pode ser instanciada com new
+// (nao tem construtor nem corpo).
+interface Repo<T> {
+  T Get();
+}
+
+void Main() {
+  var r = new Repo<int>();
+  print("nope\n");
+}

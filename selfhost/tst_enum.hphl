@@ -1,0 +1,21 @@
+class Tok { int kind; string text; }
+class Lx { string src; int pos; }
+class Ex {
+    Tok cur;
+    Tok pushed;
+    bool hasPush;
+    Lx lx;
+    bool AtPunct(string p) { return false; }
+    void Advance() { }
+    void ExpectPunct(string p) {
+        if (!this.AtPunct(p)) {
+            println("esperado '" + p + "' obtido '" +
+                    (this.cur != null ? this.cur.text : "<null>") +
+                    "' hp=" + this.hasPush +
+                    " pos=" + this.lx.pos + " srclen=" + str_len(this.lx.src));
+            panic("estado invalido");
+        }
+        this.Advance();
+    }
+}
+void Main() { println(9); }

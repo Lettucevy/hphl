@@ -1,0 +1,18 @@
+// trycatch_shared.hphl: Automatic cleanup of shared resources on exception throw path
+class Recurso {
+    int id;
+    Recurso(int i) { this.id = i; }
+}
+
+void Main() {
+    Recurso r = new Recurso(42); // shared
+    try {
+        print("antes throw\n");
+        throw "boom";
+    } catch (string s) {
+        print("catch: ");
+        print(s);
+        print("\n");
+    }
+    print("fim\n");
+}

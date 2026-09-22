@@ -1,0 +1,12 @@
+// erro_heranca_circular.hphl — herança circular entre classes (A : B e B : A)
+class A : B {
+    int a;
+}
+
+class B : A {
+    int b;
+}
+
+void Main() {
+    A a = new A();
+}

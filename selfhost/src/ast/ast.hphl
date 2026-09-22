@@ -1,0 +1,265 @@
+module Ast;
+
+// ===========================================================================
+// selfhost/src/ast/ast.hphl — Definições da Árvore Sintática Abstrata (AST)
+// Espelha compiler/src/ast/ast.h
+// ===========================================================================
+
+enum NK {
+    Num,
+    Var,
+    Str,
+    Bin,
+    Un,
+    Call,
+    Index,
+    Member,
+    New,
+    Cast,
+    ArrayInit,
+    Lambda,
+    OptIndex,
+    Match,
+    MatchArm,
+    MatchRange,
+    MatchWild,
+    MatchVariant,
+    MatchBind,
+    MatchConst,
+    MatchAt,
+    MatchList,
+    MatchStruct,
+    MatchStructField,
+    TryPost,
+    Task,
+    Await
+}
+
+class Node {
+    int kind;
+    string text; // valor de Num(literal)/Var(nome)/Str(conteúdo)/Un(op)/Call(nome)
+    string op;   // operador de Bin
+    Node left;   // Bin/Un: filho esquerdo (Un usa left)
+    Node right;  // Bin: filho direito
+    Node arg;    // Call: primeiro argumento
+    Node next;   // Call: irmão na lista de argumentos
+    Node recv;   // Call de metodo: objeto receptor
+    string tyHint; // tipo anotado pela semantica
+    string subjBind; // M33: lambda subject bind
+    string fullTy;   // M33: full type text
+    string refKind;  // ref / out / in
+    // M23.1 2.3: generic args em New/Call/Var (apenas New e Call usam agora).
+    // Ex: 'new Caixa<int>(42)' tem text="Caixa" e genArgs=["int"].
+    string[8] genArgs;
+    int genArgsC;
+    string[8] argNames;
+    int argNamesC;
+    // M33/v0.95: Lambda (NK.Lambda)
+    Pm lamParams;
+    Stmt lamBody;
+    Pm lamCaptures;
+    string lamSelfName;
+    string lamFnLabel;
+    bool isIndirectCall;
+}
+
+Node mkLambda(Pm params, Stmt body) {
+    Node n = new Node();
+    n.kind = NK.Lambda;
+    n.lamParams = params;
+    n.lamBody = body;
+    return n;
+}
+
+Node mkNum(string lit) {
+    Node n = new Node();
+    n.kind = NK.Num;
+    n.text = lit;
+    return n;
+}
+
+Node mkVar(string name) {
+    Node n = new Node();
+    n.kind = NK.Var;
+    n.text = name;
+    return n;
+}
+
+Node mkStr(string s) {
+    Node n = new Node();
+    n.kind = NK.Str;
+    n.text = s;
+    return n;
+}
+
+Node mkBin(string op, Node l, Node r) {
+    Node n = new Node();
+    n.kind = NK.Bin;
+    n.op = op;
+    n.left = l;
+    n.right = r;
+    return n;
+}
+
+Node mkUn(string op, Node e) {
+    Node n = new Node();
+    n.kind = NK.Un;
+    n.op = op;
+    n.left = e;
+    return n;
+}
+
+Node mkCall(string name) {
+    Node n = new Node();
+    n.kind = NK.Call;
+    n.text = name;
+    return n;
+}
+
+public void callAddArg(Node call, Node a) {
+    if (call.arg == null) {
+        call.arg = a;
+        return;
+    }
+    Node it = call.arg;
+    while (it.next != null) {
+        it = it.next;
+    }
+    it.next = a;
+}
+
+Node mkIndex(Node arr, Node idx) {
+    Node n = new Node();
+    n.kind = NK.Index;
+    n.left = arr;
+    n.right = idx;
+    return n;
+}
+
+Node mkMember(Node obj, string mem) {
+    Node n = new Node();
+    n.kind = NK.Member;
+    n.left = obj;
+    n.text = mem;
+    return n;
+}
+
+// ------------------------------------------------------------------
+// M14.4c: statements (fat-node com lista encadeada via next)
+// ------------------------------------------------------------------
+enum SK {
+    VarDecl,
+    Assign,
+    ExprStmt,
+    If,
+    While,
+    Do,
+    Switch,
+    Case,
+    Return,
+    Block,
+    For,
+    Break,
+    Continue,
+    Reflect,
+    TupleDestruct,
+    Try,
+    Throw,
+    Parallel
+}
+
+class Stmt {
+    int kind;
+    string name;  // VarDecl: tipo | Assign: alvo
+    string text;  // VarDecl: nome da variável
+    string op;    // Assign: "=" "+=" ...
+    Node expr;    // init/cond/valor
+    Stmt body;    // corpo (If/While/For) / primeiro stmt (Block)
+    Stmt elseBody;
+    Stmt next;
+    bool isArray; // VarDecl: declaração de array local
+    int arrSize;  // tamanho do array local
+    int elemStride; // M33: stride do elemento do array
+    Node targetIdx; // Assign a ELEMENTO: buf[i] = v
+    Node targetMember; // Assign a CAMPO: obj.campo = v
+    Stmt initS;   // For: inicialização
+    Stmt stepS;   // For: passo (Assign ou ExprStmt)
+    string fullTy; // M33: tipo completo anotado
+    bool isAtomic; // M33: flag atomic
+    string catchType; // Try: tipo do parâmetro catch
+    string catchVar;  // Try: nome do parâmetro catch
+    // M23.1 2.3: generic args do tipo declared (ex: 'int<64> x' tem ["int","64"]
+    // no name e ["64"] em genArgs). Para tipos sem generics, genArgsC == 0.
+    string[8] genArgs;
+    int genArgsC;
+}
+
+// ------------------------------------------------------------------
+// M14.4d: nível de programa (funções e globais)
+// ------------------------------------------------------------------
+enum PK {
+    Fn,
+    GVar,
+    GVarArray,
+    Class,
+    Enum,
+    Struct,
+    Interface,
+    Reflect,
+    Actor,
+    Import
+}
+
+class Pm {
+    string type;
+    string name;
+    Pm next;
+    int arrSize; // campos-array de classe: slots extras (0 = escalar, -1 = simbolico)
+    string symDim; // nome do typeParam valor (ex: N em T[N])
+    string refKind; // M33: ref / out / in
+    Node defVal;    // M33: valor default em parametro
+    bool isAtomic;  // M33: flag atomic
+    // M23.1 2.3: generic args do tipo do param (ex: 'list<int> x' tem type="list"
+    // e genArgs=["int"]). Para tipos sem generics, genArgsC == 0.
+    string[8] genArgs;
+    int genArgsC;
+}
+
+Pm mkParam(string t, string n) {
+    Pm p = new Pm();
+    p.type = t;
+    p.name = n;
+    return p;
+}
+
+void pmAdd(Pm head, Pm p) {
+    while (head.next != null) {
+        head = head.next;
+    }
+    head.next = p;
+}
+
+class Decl {
+    int kind;      // PK.Fn / PK.GVar / PK.GVarArray
+    string retType;
+    string name;
+    string owner;      // metodo: classe dona | Enum: nomes das variantes (a,b,c)
+    int arrSize; // GVarArray (tamanho de array global; int basta)
+    Node init;         // GVar com inicializador
+    Pm params;         // Fn
+    Pm captures;       // Fn lambda captures
+    string fullBases;  // M33: bases completas com generics
+    string fullTy;     // M33: tipo completo
+    bool isAtomic;     // M33: flag atomic
+    bool isTls;        // M33: thread local storage
+    bool isAsync;      // async fn (roda em task; chamada devolve task<T>)
+    string whereParam; // M33: parametro de tipo do where
+    string whereCons;  // M33: constraints do where (csv)
+    Stmt body;         // Fn (Block)
+    Decl next;
+    // M23.1 2.3: generic args em usos (não declaração). Ex: 'new Caixa<int>(42)'
+    // tem genArgs = ["int"]. Para declaração de classe/função genérica, é vazio
+    // (a info de typeParams ainda não é extraída pelo selfhost).
+    string[8] genArgs;
+    int genArgsC;
+}

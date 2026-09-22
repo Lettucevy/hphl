@@ -1,0 +1,6 @@
+class Buffer<T, const int N> {
+    public T[N] data;
+}
+specialize Buffer<int>;
+void Main() {
+}

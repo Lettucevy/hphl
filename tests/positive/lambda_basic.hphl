@@ -1,0 +1,45 @@
+// tests/positive/lambda_basic.hphl
+// Lambdas sem captura: corpos expr/bloco, multi-param, anotados,
+// IIFE, como argumento, tipo contextual func<R, P...> (v0.95)
+
+int apply(func<int, int> f, int v) {
+    return f(v) + f(v + 1);
+}
+
+void Main() {
+    // corpo expr, inferência de int
+    var inc = (x) => x + 1;
+    assert(inc(41) == 42);
+
+    // corpo bloco com local e return
+    var dbl = (x) => { int y = x * 2; return y; };
+    assert(dbl(21) == 42);
+
+    // múltiplos parâmetros (inferência com propagação)
+    var mul = (a, b) => a * b;
+    assert(mul(6, 7) == 42);
+
+    // parâmetros anotados
+    var id = (int x) => x;
+    assert(id(9) == 9);
+
+    // IIFE: lambda direta como callee
+    assert(((x) => x + 1)(41) == 42);
+
+    // lambda como argumento (contexto func<int,int>)
+    assert(apply((x) => x * 2, 10) == 42);
+
+    // tipo contextual em VarDecl
+    func<int, int> sq = (x) => x * x;
+    assert(sq(6) == 36);
+
+    // float inferido de literal
+    var half = (x) => x / 2.0;
+    assert(half(84.0) == 42.0);
+
+    // string
+    var greet = (string name) => "hi " + name;
+    assert(greet("u") == "hi u");
+
+    print("lambda_basic passed!\n");
+}

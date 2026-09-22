@@ -1,0 +1,24 @@
+struct Vec3 {
+    public float<64> x;
+    public float<64> y;
+    public float<64> z;
+
+    public Vec3(float<64> x, float<64> y, float<64> z) {
+        this.x = x;
+        this.y = y;
+        this.z = z;
+    }
+
+    public float<64> Dot(Vec3 o) {
+        return this.x * o.x + this.y * o.y + this.z * o.z;
+    }
+}
+
+void Main() {
+    Vec3 a = new Vec3(1.0, 2.0, 3.0);
+    Vec3 b = new Vec3(4.0, 5.0, 6.0);
+    float<64> d = a.Dot(b);
+    print("Dot: ");
+    print(d);
+    print("\n");
+}

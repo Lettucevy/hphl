@@ -1,0 +1,20 @@
+// erro_parallel_this.hphl - teste negativo: `parallel` não captura `this`
+// (campos/métodos de instância seguem proibidos no M2 — seria compartilhamento
+// de memória entre threads). Captura POR VALOR vale para locais (v0.22.1),
+// como em `spawn`; `this`/campos continuam vetados.
+
+class Relogio {
+    int ticks;
+
+    void Pular() {
+        parallel {
+            ticks = 5; // erro: 'this' (via campo implícito) não é capturável
+        }
+    }
+}
+
+void Main() {
+    Relogio r = new Relogio();
+    r.Pular();
+    print(r.ticks);
+}

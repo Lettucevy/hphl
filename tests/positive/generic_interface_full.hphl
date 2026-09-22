@@ -1,0 +1,61 @@
+﻿// generic_interface_full.hphl - item 2.8: generic class implementing generic interface
+// full monomorphization, type parameter propagation and virtual dispatch.
+
+interface IProducer<T> {
+  T Produce();
+}
+
+interface IConsumer<T> {
+  void Consume(T v);
+}
+
+class Box<T> : IProducer<T>, IConsumer<T> {
+  T item;
+  Box(T initial) {
+    this.item = initial;
+  }
+  T Produce() {
+    return this.item;
+  }
+  void Consume(T v) {
+    this.item = v;
+  }
+}
+
+int Extract(IProducer<int> p) {
+  return p.Produce();
+}
+
+string ExtractStr(IProducer<string> p) {
+  return p.Produce();
+}
+
+void Inject(IConsumer<int> c, int v) {
+  c.Consume(v);
+}
+
+void Main() {
+  // 1. Generic class instance typed as generic interface (int)
+  var boxInt = new Box<int>(100);
+  IProducer<int> prodInt = boxInt;
+  IConsumer<int> consInt = boxInt;
+
+  assert(prodInt.Produce() == 100);
+  consInt.Consume(250);
+  assert(prodInt.Produce() == 250);
+  assert(Extract(prodInt) == 250);
+  Inject(consInt, 42);
+  assert(Extract(prodInt) == 42);
+
+  // 2. Generic class instance typed as generic interface (string)
+  var boxStr = new Box<string>("hello");
+  IProducer<string> prodStr = boxStr;
+  IConsumer<string> consStr = boxStr;
+
+  assert(prodStr.Produce() == "hello");
+  consStr.Consume("world");
+  assert(prodStr.Produce() == "world");
+  assert(ExtractStr(prodStr) == "world");
+
+  print("generic_interface_full ok\n");
+}

@@ -1,0 +1,7 @@
+module App;
+import "lib.hphl";
+
+void Main() {
+  int x = add(2, 3);
+  println("tasks+deps+parallel+conditional: 2+3 =", x);
+}

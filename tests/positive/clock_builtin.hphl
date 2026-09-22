@@ -1,0 +1,20 @@
+// clock_builtin.hphl — teste do builtin clock_ns() (v0.22.9): compila, roda e
+// imprime saída fixa (o valor do relógio varia, mas sua existência e tipagem
+// são verificadas aqui). O exemplo clock_ns.hphl mostra tempos reais.
+void Main() {
+    int<64> t0 = clock_ns();
+    int soma = 0;
+    int i = 0;
+    while (i < 1000) {
+        soma = soma + i;
+        i++;
+    }
+    int<64> t1 = clock_ns();
+    if (t1 < t0) {
+        print("clock para tras\n");
+    } else {
+        print("clock ok ");
+        print(soma);
+        print("\n");
+    }
+}

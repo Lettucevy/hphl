@@ -1,0 +1,11 @@
+// erro: braços com `=>` devem ter tipos compatíveis
+enum E { A, B }
+
+public int Main() {
+  E e = E.A;
+  string s = match (e) {
+    A => 1,
+    _ => "texto",
+  };
+  return 0;
+}

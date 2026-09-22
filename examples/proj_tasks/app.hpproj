@@ -1,0 +1,12 @@
+{
+  "name": "proj_tasks",
+  "version": "1.0.0",
+  "output": "app.exe",
+  "entry_task": "app",
+  "tasks": {
+    "lib":    { "sources": ["lib.hphl"], "opts": "-O2" },
+    "app":    { "sources": ["main.hphl"], "deps": ["lib"] },
+    "winlog": { "sources": ["win.hphl"], "when": "os == \"windows\"" },
+    "linlog": { "sources": ["lin.hphl"], "when": "os == \"linux\"" }
+  }
+}

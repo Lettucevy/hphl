@@ -1,0 +1,8 @@
+// out não aceita rvalue
+public void Calcular(out int resultado) {
+  resultado = 10;
+}
+
+public void Main() {
+  Calcular(out 5);
+}

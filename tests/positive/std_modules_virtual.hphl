@@ -1,0 +1,25 @@
+module test_std_modules;
+
+import std.collections;
+import std.io;
+import std.string;
+import std.math as m;
+import std.net;
+
+void Main() {
+    list<int> xs = new list<int>();
+    xs.Add(10);
+    xs.Add(20);
+
+    string s = "  hello world  ";
+    string t = std.string.trim(s);
+
+    float<64> r = m.sqrt(16.0);
+
+    print(t);
+    print(" len=");
+    print(xs.Length);
+    print(" sqrt=");
+    print(r);
+    print("\n");
+}

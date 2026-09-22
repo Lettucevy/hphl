@@ -1,0 +1,9 @@
+// erro_thread_race.hphl — escrita em global sem 'shared' dentro de spawn
+// é corrida de dados (M10.4 Safety/Concurrency, spec §3/§10)
+int contador;
+
+void Main() {
+    spawn {
+        contador = 5;
+    }
+}

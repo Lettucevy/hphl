@@ -1,0 +1,19 @@
+// gc_cycle_leak.hphl: Cyclic graph validation without manual disconnect
+class N {
+    int id;
+    N prox;
+    N(int i) { this.id = i; this.prox = null; }
+}
+void Main() {
+    print("GC leak cycle: sem quebra\n");
+    N a = new N(1);
+    N b = new N(2);
+    a.prox = b;
+    b.prox = a; // ciclo - refcount 1 cada, GC refcount não coleta (vaza mas não crasha)
+    print("a=");
+    print(a.id);
+    print(" b.prox.id=");
+    if (b.prox != null) print(b.prox.id);
+    print("\n");
+    print("GC leak PASS (sem crash, vaza ciclo - limitação documentada)\n");
+}

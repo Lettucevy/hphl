@@ -1,0 +1,28 @@
+// gc_user_list.hphl: Demonstrates using list<string> for dynamic string management
+// without requiring custom class wrappers
+// Compile: hphlc gc_user_list.hphl -o gc_user_list.exe
+
+class StringIntern {
+    list<string> labels;
+    list<string> texts;
+}
+
+void Main() {
+    StringIntern si = new StringIntern();
+    // Add strings dynamically with automatic resizing
+    si.labels.Add(".L0");
+    si.texts.Add("hello");
+    si.labels.Add(".L1");
+    si.texts.Add("world");
+    si.labels.Add(".L2");
+    si.texts.Add("foo bar");
+    print("count=");
+    print(si.labels.Length);
+    print("\n");
+    print("label 0=");
+    print(si.labels[0]);
+    print("\n");
+    print("label 2=");
+    print(si.labels[2]);
+    print("\n");
+}

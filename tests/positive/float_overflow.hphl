@@ -1,0 +1,8 @@
+void Main() {
+    // Test float<32, checked> - should panic on overflow
+    float<32, checked> a = 1e20;
+    float<32, checked> b = 1e20;
+    float<32, checked> c = a * b; // 1e40 > FLT_MAX (~3.4e38) -> inf
+    print(c);
+    print("\n");
+}

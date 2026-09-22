@@ -1,0 +1,29 @@
+// policies_deep.hphl — alocadores reais das Memory Policies (M10.2 v0.47,
+// spec §3): arena = bump alloc (liberado em bloco no fim da função),
+// pool = freelist com reuso O(1), shared = refcount atômico
+class Inimigo {
+    public int vida;
+    public void Hit(int d) { vida -= d; }
+}
+
+void Main() {
+    arena Inimigo a;
+    pool Inimigo p1;
+    pool Inimigo p2;
+    shared Inimigo s;
+
+    a.Hit(30);
+    p1.Hit(10);
+    p2.Hit(20);
+    s.Hit(5);
+
+    // cada objeto tem estado INDEPENDENTE (blocos distintos)
+    println(a.vida);
+    println(p1.vida);
+    println(p2.vida);
+    println(s.vida);
+
+    heap int x = 7;
+    x += 3;
+    println(x);
+}

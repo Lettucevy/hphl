@@ -1,0 +1,10 @@
+// teste: derive Serializable só é suportado em enums (v0.25.0)
+derive Serializable
+class Jogador {
+    int vida;
+    string nome;
+}
+
+void Main() {
+    print("nunca");
+}

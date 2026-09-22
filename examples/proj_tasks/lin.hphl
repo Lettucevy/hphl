@@ -1,0 +1,2 @@
+module LinLog;
+int log(int n) { return n; }

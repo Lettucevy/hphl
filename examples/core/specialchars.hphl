@@ -1,0 +1,11 @@
+// specialchars.hphl: UTF-8 string encoding support
+
+void Main() {
+    print("ç ção ções");
+    print("\n");
+    print("á é í ó ú â ê ô ã õ à ü");
+    print("\n");
+    string s = "acentuação preservada";
+    print(s);
+    print("\n");
+}

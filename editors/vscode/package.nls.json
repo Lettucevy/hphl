@@ -1,0 +1,18 @@
+{
+  "extension.description": "Official HP-HL language support for VS Code and Cursor with LSP, DAP debugger, syntax highlighting and snippets.",
+  "config.title": "HP-HL",
+  "config.compilerPath.description": "Path to the hphlc compiler executable. If empty, searches in bin/hphlc(.exe) or the system PATH.",
+  "config.backend.description": "Default compilation backend: x64 (native fast), llvm (SIMD-optimized) or ir (textual LLVM IR).",
+  "config.trace.server.description": "Trace logging level for LSP protocol messages.",
+  "command.runFile": "HP-HL: Run File",
+  "command.debugFile": "HP-HL: Debug File",
+  "command.selectBackend": "HP-HL: Select Backend",
+  "command.buildFile": "HP-HL: Build Current File",
+  "command.restartLsp": "HP-HL: Restart Language Server (LSP)",
+  "debug.label": "HPHL Debugger",
+  "debug.program.description": "Path to the main .hphl file.",
+  "debug.args.description": "Arguments passed to the program during execution.",
+  "debug.cwd.description": "Working directory for program execution.",
+  "debug.stopOnEntry.description": "Automatically break on the first line of Main.",
+  "debug.launch.name": "HP-HL: Start Debugging (Current File)"
+}

@@ -1,0 +1,35 @@
+// visibility_members.hphl — enforcement de private/protected em membros
+// (v0.46, spec §8/§9): private = só na própria classe; protected = + derivadas
+class Conta {
+    private int saldo;
+    protected int limite;
+
+    private void Ajustar(int v) { saldo += v; }
+
+    public void Depositar(int v) {
+        this.Ajustar(v);
+        if (saldo > limite) {
+            limite = saldo;
+        }
+    }
+    public int Saldo() { return saldo; }
+    public int Limite() { return limite; }
+}
+
+class ContaVip : Conta {
+    // campo PROTEGIDO da base é acessível na derivada
+    public int LimiteDobro() { return limite * 2; }
+}
+
+void Main() {
+    Conta c;
+    c.Depositar(50);
+    print(c.Saldo());
+    println();
+    print(c.Limite());
+    println();
+    ContaVip v;
+    v.Depositar(30);
+    print(v.LimiteDobro());
+    println();
+}

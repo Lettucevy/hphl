@@ -1,0 +1,9 @@
+// ord_chr.hphl - codigo de char (ord) e char de codigo (chr).
+void Main() {
+    println(toString(ord("A")));
+    println(toString(ord("ABC", 1)));
+    println(toString(ord("")));
+    println(chr(66));
+    println(chr(33));
+    println("ord-chr-done");
+}

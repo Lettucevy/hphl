@@ -1,0 +1,13 @@
+// erro_parallel_foreach_local.hphl - teste negativo: o corpo de 'parallel
+// foreach' não acessa variáveis locais do escopo externo (roda em outras
+// threads; só globais/threadlocal/atomic são visíveis)
+
+int[8] a = {1, 2, 3, 4, 5, 6, 7, 8};
+
+void Main() {
+    int mine = 0;
+    parallel foreach (var x in a) {
+        mine = mine + x; // erro: local do escopo externo
+    }
+    print(mine);
+}

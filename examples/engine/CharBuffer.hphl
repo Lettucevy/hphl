@@ -1,0 +1,122 @@
+// CharBuffer.hphl: Text framebuffer with cell grid and drawing primitives.
+// String rendering primitives and cursor-home presentation.
+module CharBuffer;
+
+string[1800] cells;
+int bufW;
+int bufH;
+
+public void BufInit(int w, int h) {
+    bufW = w;
+    bufH = h;
+    BufClear();
+}
+
+public void BufClear() {
+    int i = 0;
+    int n = bufW * bufH;
+    while (i < n) {
+        cells[i] = " ";
+        i = i + 1;
+    }
+}
+
+public void BufSet(int x, int y, string g) {
+    if (x < 0) return;
+    if (y < 0) return;
+    if (x >= bufW) return;
+    if (y >= bufH) return;
+    cells[y * bufW + x] = g;
+}
+
+public string BufGet(int x, int y) {
+    if (x < 0) return " ";
+    if (y < 0) return " ";
+    if (x >= bufW) return " ";
+    if (y >= bufH) return " ";
+    return cells[y * bufW + x];
+}
+
+public void BufText(int x, int y, string s) {
+    int i = 0;
+    int n = str_len(s);
+    while (i < n) {
+        BufSet(x + i, y, sub_str(s, i, 1));
+        i = i + 1;
+    }
+}
+
+public void BufRect(int x, int y, int w, int h, string g) {
+    int j = 0;
+    while (j < h) {
+        int i = 0;
+        while (i < w) {
+            BufSet(x + i, y + j, g);
+            i = i + 1;
+        }
+        j = j + 1;
+    }
+}
+
+public void BufFrame(int x, int y, int w, int h) {
+    BufSet(x, y, "+");
+    BufSet(x + w - 1, y, "+");
+    BufSet(x, y + h - 1, "+");
+    BufSet(x + w - 1, y + h - 1, "+");
+    int i = 1;
+    while (i < w - 1) {
+        BufSet(x + i, y, "-");
+        BufSet(x + i, y + h - 1, "-");
+        i = i + 1;
+    }
+    int j = 1;
+    while (j < h - 1) {
+        BufSet(x, y + j, "|");
+        BufSet(x + w - 1, y + j, "|");
+        j = j + 1;
+    }
+}
+
+// Bresenham: Line rasterization between two grid coordinates.
+public void BufLine(int x0, int y0, int x1, int y1, string g) {
+    int dx = x1 - x0;
+    if (dx < 0) dx = 0 - dx;
+    int dy = y1 - y0;
+    if (dy < 0) dy = 0 - dy;
+    int sx = 1;
+    if (x0 > x1) sx = -1;
+    int sy = 1;
+    if (y0 > y1) sy = -1;
+    int err = dx - dy;
+    int x = x0;
+    int y = y0;
+    bool done = false;
+    while (!done) {
+        BufSet(x, y, g);
+        if (x == x1 && y == y1) done = true;
+        int e2 = err * 2;
+        if (e2 > 0 - dy) {
+            err = err - dy;
+            x = x + sx;
+        }
+        if (e2 < dx) {
+            err = err + dx;
+            y = y + sy;
+        }
+    }
+}
+
+public string BufRender() {
+    string frame = "";
+    int y = 0;
+    while (y < bufH) {
+        int x = 0;
+        while (x < bufW) {
+            frame = frame + cells[y * bufW + x];
+            x = x + 1;
+        }
+        frame = frame + "\n";
+        y = y + 1;
+    }
+    return frame;
+}

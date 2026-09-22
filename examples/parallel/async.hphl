@@ -1,0 +1,31 @@
+// async.hphl: async/await asynchronous execution and task handles
+// async function call returns task<T> immediately; `await` yields result.
+// Counter is atomic for thread-safe concurrent modifications.
+atomic int contador = 0;
+
+async int Dobrar(int x) {
+    contador += 1;
+    return x * 2;
+}
+
+async int SomaPar(int x, int y) {
+    // awaits two tasks in sequence
+    return await Dobrar(x) + await Dobrar(y);
+}
+
+void Main() {
+    task<int> t1 = SomaPar(20, 21);
+    task<int> t2 = SomaPar(1, 2);
+    int a = await t1; // 40 + 42 = 82
+    int b = await t2; // 2 + 4 = 6
+    print("a = ");
+    print(a);
+    print("\n");
+    print("b = ");
+    print(b);
+    print("\n");
+    print("contador = ");
+    print(contador); // 4 chamadas a Dobrar
+    print("\n");
+    print("done\n");
+}

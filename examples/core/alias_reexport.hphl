@@ -1,0 +1,43 @@
+// alias_reexport.hphl - `using X = Tipo;` and `public use Mod.Nome;` (Milestone 2)
+// Local aliases to qualified types, alias through a re-exported name, and
+// qualified use of a re-exported type from another module.
+
+import ModCore as MC;
+import ModAlias as MA;
+
+using Counter2 = MC.Counter;   // alias to a type in another module
+using MyCounter = MA.Counter;  // alias to a re-exported type (MA → MC)
+using S2 = MC.State;           // alias to an enum type
+
+void Main() {
+    // local alias used in declarations and `new`
+    Counter2 c = new Counter2(7);
+    print("counter = ");
+    print(c.Get());
+    print("\n");
+
+    // alias that points at a re-exported name
+    MyCounter d = new MyCounter(1);
+    print("renamed = ");
+    print(d.Bump());
+    print("\n");
+
+    // re-exported type reached through the exporting module
+    MA.Counter e = new MA.Counter(2);
+    print("reexport = ");
+    print(e.Get());
+    print("\n");
+
+    // enum alias in an expression (S2.RUNNING)
+    int st = S2.RUNNING;
+    print("enum alias = ");
+    print(st);
+    print("\n");
+
+    // function from the module that declares `depends on`
+    print("via reexport fn = ");
+    print(MA.viaReexport());
+    print("\n");
+
+    print("done\n");
+}

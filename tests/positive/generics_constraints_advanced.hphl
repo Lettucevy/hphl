@@ -1,0 +1,61 @@
+// generics_constraints_advanced.hphl — constraints avançadas: struct, class, new(), IComparable
+struct Point {
+    public int X;
+    public int Y;
+}
+
+derive Comparable
+class Item {
+    public int Id;
+}
+
+class Box<T> where T : class {
+    public T Val;
+    public Box(T v) { Val = v; }
+}
+
+T CreateNew<T>() where T : new(), class {
+    return new T();
+}
+
+T TakeStruct<T>(T v) where T : struct {
+    return v;
+}
+
+T MaxVal<T>(T a, T b) where T : IComparable {
+    return a > b ? a : b;
+}
+
+void Main() {
+    // 1. struct constraint com int e struct
+    int n = TakeStruct(42);
+    Point p;
+    p.X = 10;
+    p.Y = 20;
+    Point p2 = TakeStruct(p);
+    print(n);
+    print("\n");
+    print(p2.X + p2.Y);
+    print("\n");
+
+    // 2. new() constraint
+    Item it = CreateNew<Item>();
+    it.Id = 99;
+    print(it.Id);
+    print("\n");
+
+    // 3. Class template com constraint where T : class
+    Item it2 = new Item();
+    it2.Id = 100;
+    Box<Item> box = new Box<Item>(it2);
+    print(box.Val.Id);
+    print("\n");
+
+    // 4. IComparable com int e float
+    print(MaxVal(10, 20));
+    print("\n");
+    print(MaxVal(45.5, 12.25));
+    print("\n");
+
+    print("constraints advanced ok\n");
+}

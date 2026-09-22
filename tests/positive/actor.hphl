@@ -1,0 +1,44 @@
+// actor.hphl — `actor` (spec §10, v0.23.0): estado próprio ENCAPSULADO e
+// acessível apenas por métodos; chamadas externas são SERIALIZADAS por um
+// spinlock por objeto no runtime. Sem o lock, as 3 partes do `parallel`
+// somando a mesma célula perderiam atualizações; com ele, total é exato.
+//
+//   Contador c = new Contador(0);
+//   c.Inc(1); c.Inc(2);            // chamadas diretas (já serializadas)
+//   parallel { c.Inc(1); ×3 }      // as 3 partes disputam o mesmo objeto
+//   print(c.Value());              // 0+1+2+3 = 6 (sempre)
+//
+// Restrições do M2: sem herança/interfaces/propriedades; parâmetros por valor;
+// campos só são lidos/escritos dentro dos métodos do próprio actor.
+// (Anatema: chamadas cruzadas A→B→A com objetos distintos podem deadlockar
+// em colisão de hash — a tabela tem 64 slots; documentado no SPEC.)
+
+actor Contador {
+    int total;
+
+    Contador(int init) {
+        total = init;
+    }
+
+    void Inc(int n) {
+        total += n;
+    }
+
+    int Value() {
+        return total;
+    }
+}
+
+void Main() {
+    shared Contador c = new Contador(0); // M11.4: compartilhado por intenção (serializado pelo lock do actor)
+    c.Inc(1);                            // externo (Main): serializado
+    c.Inc(2);
+    parallel {
+        c.Inc(1);
+        c.Inc(1);
+        c.Inc(1);
+    }
+    print(c.Value());
+    print("\n");
+    print("done\n");
+}

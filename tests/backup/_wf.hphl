@@ -1,0 +1,4 @@
+void Main() {
+    write_file("teste.txt", "conteudo");
+    println(file_exists("teste.txt"));
+}

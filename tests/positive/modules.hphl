@@ -1,0 +1,28 @@
+// modules.hphl - entry file using module imports (Milestone 2)
+// Resolution: `import ModLib;` finds ModLib.hphl in the same folder.
+
+import ModLib;
+
+void Main() {
+    print("double 21 = ");
+    print(Double(21));
+    print("\n");
+
+    print("baseFactor = ");
+    print(baseFactor);
+    print("\n");
+
+    int s = Status.READY;
+    print("status = ");
+    print(s);
+    print("\n");
+
+    Point p = new Point(3, 4);
+    print("point sum = ");
+    print(p.Sum());
+    print("\n");
+
+    print("apply 5 = ");
+    print(Apply(5));
+    print("\n");
+}

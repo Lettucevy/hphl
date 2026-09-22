@@ -1,0 +1,7 @@
+// ModAlpha.hphl - module defining a class named `Status` (ambiguity test)
+
+module ModAlpha;
+
+class Status {
+    int code;
+}

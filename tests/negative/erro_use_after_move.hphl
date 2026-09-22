@@ -1,0 +1,11 @@
+﻿class Inimigo {
+    public int vida;
+}
+void Main() {
+    heap Inimigo a;
+    heap Inimigo b;
+    a.vida = 10;
+    b = a;
+    println(b.vida);
+    println(a.vida);
+}

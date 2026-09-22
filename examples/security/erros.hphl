@@ -1,0 +1,59 @@
+// Structured error types with named arguments and Result<void, E>
+struct LoadError {
+  string mensagem;
+  int codigo;
+  LoadError(string mensagem, int codigo) {
+    this.mensagem = mensagem;
+    this.codigo = codigo;
+  }
+}
+
+// Result<void, LoadError>: Ok represents success signal without payload
+Result<void, LoadError> Grava(string arquivo) {
+  if (arquivo == "ok") {
+    return Ok;
+  }
+  return Err(LoadError(mensagem: "falhou", codigo: 12));
+}
+
+// `?` on Result<void, E>: propagates Err, Ok produces void
+Result<void, LoadError> Propaga(string arquivo) {
+  Grava(arquivo)?;
+  return Ok();
+}
+
+Result<int, LoadError> Divide(int a, int b) {
+  if (b == 0) {
+    return Err(new LoadError(mensagem: "div por zero", codigo: 5));
+  }
+  return Ok(a / b);
+}
+
+void Main() {
+  match (Grava("ok")) {
+    Ok => { print("graviu ok\n"); },
+    Err(e) => { print("erro inesperado\n"); },
+  }
+
+  match (Propaga("no")) {
+    Ok => { print("propagou ok\n"); },
+    Err(e) => { print("propagado: ", e.mensagem, "\n"); },
+  }
+
+  match (Divide(10, 2)) {
+    Ok(v) => { print("div ok: ", v, "\n"); },
+    Err(e) => { print("erro: ", e.codigo, " ", e.mensagem, "\n"); },
+  }
+
+  match (Divide(10, 0)) {
+    Ok(v) => { print("div ok\n"); },
+    Err(e) => { print("div por zero: ", e.codigo, "\n"); },
+  }
+
+  // Named struct construction: arbitrary order by field name
+  LoadError le = new LoadError(mensagem: "x", codigo: 42);
+  print(le.codigo, " ", le.mensagem, "\n");
+
+  LoadError le2 = LoadError(codigo: 7, mensagem: "y");
+  print(le2.codigo, " ", le2.mensagem, "\n");
+}

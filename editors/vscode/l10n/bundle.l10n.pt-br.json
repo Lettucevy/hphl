@@ -1,0 +1,17 @@
+{
+  "[HPHL] Extension activated successfully.": "[HPHL] Extensão ativada com sucesso.",
+  "[HPHL] Compiler detected: {0}": "[HPHL] Compilador detectado: {0}",
+  "Click to switch HPHL compiler backend (x64 / llvm / ir)": "Clique para alternar o backend do compilador HPHL (x64 / llvm / ir)",
+  "Fast native x86_64 (instant compilation, direct emit)": "Nativo x86_64 rápido (compilação instantânea, emit direto)",
+  "LLVM Optimizer Backend (SIMD auto-vectorization, -O2 optimization pipeline)": "Backend Otimizador LLVM (vetorização SIMD, pipelines de otimização -O2)",
+  "Generate and dump textual LLVM IR (.ll)": "Geração e dump de IR textual intermediário (.ll)",
+  "Select HPHL compiler backend (current: {0})": "Selecione o backend do compilador HPHL (atual: {0})",
+  "HPHL backend changed to: {0}": "Backend HPHL alterado para: {0}",
+  "No active HPHL file.": "Nenhum arquivo HPHL ativo.",
+  "HPHL: Debug Current File": "HPHL: Depurar Arquivo Atual",
+  "Restarting LSP server...": "Reiniciando servidor LSP...",
+  "HPHL LSP server restarted.": "Servidor HPHL LSP reiniciado.",
+  "Active file is not a .hphl file.": "O arquivo ativo não é um arquivo .hphl.",
+  "HPHL: Start Debugging": "HPHL: Iniciar Depuração",
+  "No .hphl file specified for debugging.": "Não foi especificado nenhum arquivo .hphl para depuração."
+}

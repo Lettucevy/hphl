@@ -1,0 +1,7 @@
+// erro_threadlocal_init.hphl - teste negativo: 'threadlocal' global não
+// suporta inicializador no Milestone 2 (o bloco da thread começa zerado)
+threadlocal int x = 5;
+
+void Main() {
+    print(x);
+}

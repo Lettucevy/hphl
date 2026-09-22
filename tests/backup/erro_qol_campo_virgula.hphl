@@ -1,0 +1,10 @@
+module erro_qol_campo_virgula;
+
+// M5 (v0.36.0) negativo: multi-decl em campos de struct não é suportado
+struct P {
+    int x, y;
+}
+
+void Main() {
+    P p;
+}

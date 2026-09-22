@@ -1,0 +1,26 @@
+// lock_discipline.hphl — padrões corretos de lock (M11.8, spec §3/§10):
+// decisões e usos do objeto DENTRO do bloco; re-lock para acessar de novo
+class Caixa {
+    public int valor;
+}
+
+void Main() {
+    Caixa cx = new Caixa();
+    cx.valor = 7;
+
+    // leitura e uso no mesmo bloco: sem janela TOCTOU
+    lock (cx) {
+        println(cx.valor);
+    }
+
+    // precisa de novo? novo lock: a leitura volta a ser sincronizada
+    lock (cx) {
+        cx.valor = cx.valor + 1;
+        println(cx.valor);
+    }
+
+    // objeto que nunca foi lido sob lock: uso livre
+    Caixa outra = new Caixa();
+    outra.valor = 99;
+    println(outra.valor);
+}

@@ -1,0 +1,35 @@
+/*
+   Cookbook 03: HTTP server (sketch)
+   Pseudocode-style skeleton showing a single-threaded HTTP/1.0 server
+   using std.net. Real implementation needs a runtime that exposes
+   socket() / bind() / listen() / accept() — see examples/net/.
+*/
+module cookbook.httpserver;
+
+import std.net;
+
+class Server {
+    private int port;
+    public Server(int p) { port = p; }
+
+    public void Run() {
+        // socket, bind, listen
+        // loop:
+        //   client = accept()
+        //   spawn { HandleClient(client); }
+    }
+
+    private void HandleClient(int client) {
+        // read request line
+        // parse method, path
+        // dispatch
+        // write response
+        // close
+    }
+}
+
+void Main() {
+    Server s = new Server(8080);
+    print("listening on :8080\n");
+    s.Run();
+}

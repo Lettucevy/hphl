@@ -1,0 +1,12 @@
+// erro_ensure_fail.hphl - viola postcondition (result < 0) -> assert em runtime.
+int Divide(int a, int b)
+    require b != 0
+    ensure result >= 0
+{
+    return a / b;
+}
+
+void Main() {
+  print(Divide(-7, 2));
+  print("\n");
+}

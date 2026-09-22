@@ -1,0 +1,13 @@
+struct LoadError {
+  string mensagem;
+  int codigo;
+  LoadError(string mensagem, int codigo) {
+    this.mensagem = mensagem;
+    this.codigo = codigo;
+  }
+}
+
+void Main() {
+  LoadError le = LoadError(foo: 1, codigo: 2);
+  print(le.codigo, "\n");
+}

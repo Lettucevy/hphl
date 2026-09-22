@@ -1,0 +1,40 @@
+// hello.hphl — primeiro programa HP-HL (Milestone 1)
+// Compila:  hphlc hello.hphl -o hello.exe
+// Executa:  hello.exe
+
+import "ModMath.hphl";
+
+int Fatorial(int n) {
+    if (n <= 1) {
+        return 1;
+    }
+    return n * Fatorial(n - 1);
+}
+
+void Main() {
+    print("Olá, mundo HP-HL!");
+    print("\n");
+
+    int x = 42;
+    print("x = ");
+    print(x);
+    print("\n");
+
+    float pi = 3.14159;
+    print("pi = ");
+    print(pi);
+    print("\n");
+
+    print("5! = ");
+    print(Fatorial(5));
+    print("\n");
+
+    int soma = 0;
+    for (int i = 1; i <= 10; i++) {
+        soma += i;
+    }
+    
+    print("soma 1..10 = ");
+    print(soma);
+    print("\n");
+}

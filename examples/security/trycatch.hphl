@@ -1,0 +1,38 @@
+// §12 — exceções opcionais try/catch (custo zero no caminho de sucesso)
+class LoadErro {
+  string mensagem;
+  LoadErro(string m) { this.mensagem = m; }
+}
+
+int Dividir(int a, int b) {
+  if (b == 0) {
+    throw new LoadErro("divisao por zero");
+  }
+  return a / b;
+}
+
+void Main() {
+  int ok1 = Dividir(10, 2);
+  print(ok1, "\n"); // caminho de sucesso, sem custo de verificação por chamada
+
+  try {
+    int r = Dividir(10, 0);
+    print("nunca chega aqui\n");
+  } catch (LoadErro e) {
+    print("capturado: " + e.mensagem, "\n");
+  }
+
+  // throw within catch block re-raises exception to outer try-catch
+  try {
+    try {
+      throw new LoadErro("interno");
+    } catch (LoadErro e) {
+      print("1o catch: " + e.mensagem, "\n");
+      throw new LoadErro("externo");
+    }
+  } catch (LoadErro e) {
+    print("2o catch: " + e.mensagem, "\n");
+  }
+
+  print("fim\n");
+}

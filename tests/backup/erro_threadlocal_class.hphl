@@ -1,0 +1,11 @@
+// erro_threadlocal_class.hphl - teste negativo: 'threadlocal' não é suportado
+// para classes no Milestone 2 (apenas escalares: um slot de 8 bytes zerado)
+class Ponto {
+    int x;
+    int y;
+}
+threadlocal Ponto p;
+
+void Main() {
+    print(0);
+}

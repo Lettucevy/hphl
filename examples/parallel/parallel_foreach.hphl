@@ -1,0 +1,42 @@
+// parallel_foreach.hphl: Parallel foreach loop with multi-worker scheduling
+// são divididas em até 4 partes por um loop strided (j = p; j < N; j += P),
+// cada parte numa thread, com barreira no final. O sujeito é compartilhado
+// por ponteiro: array GLOBAL ou list LOCAL (objeto heap). Acumuladores
+// atômicos via operador COMPOSTO (+= → lock xaddq, uma única RMW atômica)
+// tornam as somas determinísticas: cada índice é somado exatamente uma vez,
+// em qualquer ordem. (NOTA: `soma = soma + x` em atomic NÃO é RMW — lê e
+// depois escreve separadamente, com perda de atualizações sob concorrência.)
+atomic int somaArrays = 0;
+atomic int somaListas = 0;
+
+int[120] nums;
+
+void Main() {
+    int i = 0;
+    while (i < 120) {
+        nums[i] = 2 * i + 1; // 1, 3, 5, ..., 239
+        i++;
+    }
+
+    list<int> vals;
+    i = 0;
+    while (i < 100) {
+        vals.Add(i + 1); // 1..100
+        i++;
+    }
+
+    parallel foreach (var x in nums) {
+        somaArrays += x; // 2*(0+..+119) + 120 = 14400
+    }
+    parallel foreach (var y in vals) {
+        somaListas += y; // 1+..+100 = 5050
+    }
+
+    print("soma arrays = ");
+    print(somaArrays);
+    print("\n");
+    print("soma listas = ");
+    print(somaListas);
+    print("\n");
+    print("done\n");
+}

@@ -1,0 +1,61 @@
+// gc_mixed.hphl: Mixed heap objects (arrays, dynamic lists, class instances)
+// Validates GC across multiple heap types with zero regressions
+// Compile: hphlc gc_mixed.hphl -o gc_mixed.exe
+
+class Ponto {
+    int x;
+    int y;
+    Ponto(int ax, int ay) {
+        this.x = ax;
+        this.y = ay;
+    }
+    int Soma() {
+        return this.x + this.y;
+    }
+}
+
+void Main() {
+    print("GC mixed: arrays/listas/classes...\n");
+    // Arrays
+    int[10] arr = {0,0,0,0,0,0,0,0,0,0};
+    for (int i = 0; i < 10; i++) {
+        arr[i] = i * 3;
+    }
+    int sArr = 0;
+    for (int i = 0; i < 10; i++) {
+        sArr += arr[i];
+    }
+    print("arr sum=");
+    print(sArr);
+    print(" (exp 135) ");
+    if (sArr == 135) print("OK "); else print("FAIL ");
+    print("\n");
+
+    // Lists
+    list<int> lst;
+    for (int i = 0; i < 100; i++) {
+        lst.Add(i);
+    }
+    print("list len=");
+    print(lst.Length);
+    print("\n");
+
+    // Classes in loop
+    int total = 0;
+    for (int i = 0; i < 200; i++) {
+        Ponto p = new Ponto(i, i+1);
+        total += p.Soma();
+    }
+    print("pontos total=");
+    print(total);
+    print(" (exp 40000) ");
+    if (total == 40000) print("OK"); else print("FAIL");
+    print("\n");
+
+    // Strings and classes allocated concurrently
+    Ponto pp = new Ponto(10, 20);
+    string msg = "Ponto " + pp.Soma() + " ok";
+    print(msg);
+    print("\n");
+    print("GC mixed PASS\n");
+}

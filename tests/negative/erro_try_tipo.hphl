@@ -1,0 +1,8 @@
+Option<int> f() {
+    int v = 3?;
+    return Some(v);
+}
+
+void Main() {
+    print("unreachable\n");
+}

@@ -1,0 +1,104 @@
+class Vec3 {
+    public float<64> x;
+    public float<64> y;
+    public float<64> z;
+
+    public Vec3(float<64> x, float<64> y, float<64> z) {
+        this.x = x;
+        this.y = y;
+        this.z = z;
+    }
+
+    public float<64> Dot(Vec3 o) {
+        return this.x * o.x + this.y * o.y + this.z * o.z;
+    }
+
+    public Vec3 Add(Vec3 o) {
+        return new Vec3(this.x + o.x, this.y + o.y, this.z + o.z);
+    }
+
+    public Vec3 Sub(Vec3 o) {
+        return new Vec3(this.x - o.x, this.y - o.y, this.z - o.z);
+    }
+
+    public Vec3 Mul(float<64> s) {
+        return new Vec3(this.x * s, this.y * s, this.z * s);
+    }
+
+    public Vec3 Norm() {
+        float<64> d = this.Dot(this);
+        float<64> l = sqrt(d);
+        if (l <= 0.0) return this;
+        return new Vec3(this.x / l, this.y / l, this.z / l);
+    }
+}
+
+class Sphere {
+    public Vec3 center;
+    public float<64> radius;
+
+    public Sphere(Vec3 c, float<64> r) {
+        this.center = c;
+        this.radius = r;
+    }
+
+    public float<64> Hit(Vec3 ro, Vec3 rd) {
+        Vec3 oc = ro.Sub(this.center);
+        float<64> a = rd.Dot(rd);
+        float<64> b = 2.0 * oc.Dot(rd);
+        float<64> c = oc.Dot(oc) - this.radius * this.radius;
+        float<64> disc = b * b - 4.0 * a * c;
+        if (disc < 0.0) return -1.0;
+        float<64> sq = sqrt(disc);
+        float<64> t = (0.0 - b - sq) / (2.0 * a);
+        if (t > 0.001) return t;
+        t = (0.0 - b + sq) / (2.0 * a);
+        if (t > 0.001) return t;
+        return -1.0;
+    }
+}
+
+void Main() {
+    int width = 800;
+    int height = 800;
+
+    Sphere s1 = new Sphere(new Vec3(0.0, 0.0, -5.0), 1.0);
+    Sphere s2 = new Sphere(new Vec3(2.0, 0.5, -6.0), 1.2);
+    Sphere s3 = new Sphere(new Vec3(-2.0, -0.5, -4.5), 0.8);
+
+    Vec3 light = new Vec3(5.0, 10.0, -2.0).Norm();
+    Vec3 ro = new Vec3(0.0, 0.0, 0.0);
+
+    float<64> totalIntensity = 0.0;
+
+    for (int y = 0; y < height; y++) {
+        float<64> vy = (y * 2.0 - height) / (height * 1.0);
+        for (int x = 0; x < width; x++) {
+            float<64> vx = (x * 2.0 - width) / (width * 1.0);
+            Vec3 rd = new Vec3(vx, 0.0 - vy, -1.0).Norm();
+
+            float<64> t1 = s1.Hit(ro, rd);
+            float<64> t2 = s2.Hit(ro, rd);
+            float<64> t3 = s3.Hit(ro, rd);
+
+            float<64> minT = 999999.0;
+            Sphere hitSphere = null;
+
+            if (t1 > 0.0 && t1 < minT) { minT = t1; hitSphere = s1; }
+            if (t2 > 0.0 && t2 < minT) { minT = t2; hitSphere = s2; }
+            if (t3 > 0.0 && t3 < minT) { minT = t3; hitSphere = s3; }
+
+            if (hitSphere != null) {
+                Vec3 hitPoint = ro.Add(rd.Mul(minT));
+                Vec3 normal = hitPoint.Sub(hitSphere.center).Norm();
+                float<64> diff = normal.Dot(light);
+                if (diff < 0.0) diff = 0.0;
+                totalIntensity = totalIntensity + diff + 0.1;
+            }
+        }
+    }
+
+    print("Checksum: ");
+    print(totalIntensity);
+    print("\n");
+}

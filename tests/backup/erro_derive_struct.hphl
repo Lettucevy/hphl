@@ -1,0 +1,11 @@
+// erro: derive Serializable só é suportado em enums (v0.25.0)
+derive Serializable
+struct Ponto {
+  int x;
+  int y;
+}
+
+void Main() {
+  Ponto p;
+  print(1, "\n");
+}

@@ -1,0 +1,12 @@
+// erro: Comparable exige enum de valores simples (sem payload)
+derive Comparable
+enum Estado {
+  Idle,
+  Conectando(int tentativa),
+  Pronto,
+}
+
+void Main() {
+  Estado e = Estado.Pronto;
+  print(1, "\n");
+}

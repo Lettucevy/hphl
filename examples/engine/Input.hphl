@@ -1,0 +1,34 @@
+// Input.hphl: Real-time keyboard polling via GetAsyncKeyState (FFI user32).
+module Input;
+
+import Win32;
+
+public class GameInput {
+    public bool Left() {
+        return KeyDown(VkLeft()) || KeyDown(VkKeyA());
+    }
+
+    public bool Right() {
+        return KeyDown(VkRight()) || KeyDown(VkKeyD());
+    }
+
+    public bool Up() {
+        return KeyDown(VkUp()) || KeyDown(VkKeyW());
+    }
+
+    public bool Down() {
+        return KeyDown(VkDown()) || KeyDown(VkKeyS());
+    }
+
+    public bool Fire() {
+        return KeyDown(VkSpace());
+    }
+
+    public bool Pause() {
+        return KeyDown(VkKeyP());
+    }
+
+    public bool Quit() {
+        return KeyDown(VkEscape()) || KeyDown(VkKeyQ());
+    }
+}

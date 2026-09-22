@@ -1,0 +1,8 @@
+// valor padrão precisa ser literal (constante de compilação)
+public int Soma(int a, int b = a + 1) {
+  return a + b;
+}
+
+public void Main() {
+  print(Soma(1));
+}

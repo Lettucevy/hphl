@@ -1,0 +1,31 @@
+// Collider.hphl: 2D physics collision (AABB and circle-circle intersection).
+module Collider;
+
+public bool AabbOverlap(float<64> ax, float<64> ay, float<64> aw, float<64> ah,
+                        float<64> bx, float<64> by, float<64> bw, float<64> bh) {
+    if (ax + aw < bx) return false;
+    if (bx + bw < ax) return false;
+    if (ay + ah < by) return false;
+    if (by + bh < ay) return false;
+    return true;
+}
+
+public bool CircleHit(float<64> ax, float<64> ay, float<64> ar,
+                      float<64> bx, float<64> by, float<64> br) {
+    float<64> dx = ax - bx;
+    float<64> dy = ay - by;
+    float<64> rr = ar + br;
+    return dx * dx + dy * dy < rr * rr;
+}
+
+public float<64> ClampF(float<64> v, float<64> lo, float<64> hi) {
+    if (v < lo) return lo;
+    if (v > hi) return hi;
+    return v;
+}
+
+public int ClampI(int v, int lo, int hi) {
+    if (v < lo) return lo;
+    if (v > hi) return hi;
+    return v;
+}

@@ -1,0 +1,15 @@
+// erro_async_method.hphl - teste negativo: async em método de classe não é
+// suportado no M2 (use função global; a chamada devolve task<T>)
+class Relogio {
+    int ticks;
+
+    async void Tocar() { // erro: async em método
+        ticks = 1;
+    }
+}
+
+void Main() {
+    Relogio r = new Relogio();
+    r.Tocar();
+    print(r.ticks);
+}

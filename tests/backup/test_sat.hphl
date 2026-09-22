@@ -1,0 +1,7 @@
+void Main() {
+    float<32, saturate> a = 1e30;
+    float<32, saturate> b = 1e30;
+    float<32, saturate> c = a * b;
+    print(c);
+    print(chr(10));
+}

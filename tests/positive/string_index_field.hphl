@@ -1,0 +1,27 @@
+// string_index_field.hphl - regressão: s[i] com objeto e/ou índice vindos
+// de campos (ou chamadas) clobberava rcx — o objeto precisa de spill.
+// Antes: S[P] devolvia lixo; agora: 'a'.
+class C {
+  string S;
+  int P;
+  C(string s) {
+    S = s;
+    P = 1;
+  }
+  char Get() {
+    return S[P];
+  }
+  char GetAt(int i) {
+    return S[i];
+  }
+}
+
+void Main() {
+  var c = new C("abc");
+  assert(c.Get() == 'b');
+  assert(c.GetAt(0) == 'a');
+  assert(c.GetAt(2) == 'c');
+  string t = "xyz";
+  assert(t[1] == 'y');
+  print("string_index_field ok\n");
+}

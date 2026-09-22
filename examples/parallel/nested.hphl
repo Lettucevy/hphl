@@ -1,0 +1,72 @@
+// nested.hphl: Nested parallelism (spawns and loops within parallel blocks)
+// parallel foreach dentro de corpos de spawn/parallel. Cada bloco `parallel`
+// abre uma REGIÃO e a barreira espera só as tarefas daquela região; tarefas
+// aninhadas rodam em qualquer worker do pool e quem espera rouba trabalho da
+// fila (deadlock-free). Acumuladores com += (RMW atômica) → determinístico.
+// NOTA: cada PARTE de um `parallel { }` é uma tarefa — variáveis declaradas
+// numa parte não existem nas irmãs (use um bloco { } para agrupar statements).
+atomic int soma = 0;
+atomic int spawnsInternos = 0;
+
+int[20] arr;
+
+void Main() {
+    int i = 0;
+    while (i < 20) {
+        arr[i] = i + 1; // 1..20 (soma = 210)
+        i++;
+    }
+
+    int k = 0;
+    parallel {
+        {
+            k++; // captura por valor (não propaga)
+        }
+        {
+            // parte 0: parallel ANINHADO (região própria)
+            int j = 0;
+            while (j < 10) {
+                soma += 2; // 20 por parte aninhada
+                j++;
+            }
+        }
+        {
+            // parte 1: 3 spawns aninhados (barreira do nível 1 os cobre)
+            spawn task { spawnsInternos += 1; }
+            spawn task { spawnsInternos += 1; }
+            spawn task { spawnsInternos += 1; }
+        }
+    }
+    // nível 2 barra só as 3 partes; o join do nível 1 espera tudo acima:
+    // soma = 20 (só a parte do while acumula); spawnsInternos = 3
+    print("soma = ");
+    print(soma);
+    print("\n");
+    print("spawns internos = ");
+    print(spawnsInternos);
+    print("\n");
+
+    // parallel foreach ANINHADO dentro de uma parte
+    parallel {
+        {
+            int m = 0;
+            while (m < 5) {
+                soma += 1;
+                m++;
+            }
+        }
+        {
+            parallel foreach (var x in arr) {
+                soma += x; // 1..20 = 210
+            }
+        }
+    }
+    // soma = 20 + 5 + 210 = 235
+    print("soma = ");
+    print(soma);
+    print("\n");
+    print("k local = ");
+    print(k); // 1 (captura por valor na parte do nível 1)
+    print("\n");
+    print("done\n");
+}

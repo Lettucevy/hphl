@@ -1,0 +1,17 @@
+class Ponto {
+    int x;
+    int y;
+
+    int Soma() {
+        return this.x + this.y;
+    }
+}
+
+void Main() {
+    Ponto p = new Ponto();
+    p.x = 3;
+    p.y = 4;
+    println(p.Soma());
+    println(p.x * p.y);
+    println("fim");
+}

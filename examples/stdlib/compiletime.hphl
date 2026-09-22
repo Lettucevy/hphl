@@ -1,0 +1,38 @@
+// compiletime.hphl: Compile-time constant folding and function evaluation
+// chamadas com argumentos literais são dobradas para constantes
+// (`const int tamanho = CalcularTamanho(32);` vira 64 no código final)
+// + arrays locais fixos nascem zerados (v0.46)
+
+compiletime int CalcularTamanho(int valor) {
+    return valor * 2;
+}
+
+compiletime int Fib(int n) {
+    if (n <= 1) { return n; }
+    return Fib(n - 1) + Fib(n - 2);
+}
+
+compiletime int Soma(int a, int b) {
+    int x = a + b;
+    if (x > 10) {
+        x = x * 10;
+    }
+    return x;
+}
+
+void Main() {
+    const int tamanho = CalcularTamanho(32);
+    print(tamanho);
+    println();
+    print(Fib(15));
+    println();
+    print(Soma(3, 9));
+    println();
+    int[64] buf;
+    buf[tamanho / 32] = 7;
+    print(buf[0]);
+    println();
+    print(buf[1]);
+    println();
+    print(buf[2]);
+}

@@ -1,0 +1,25 @@
+// A10: lock aninhado (warning, não erro)
+class Recurso {
+    int valor;
+}
+
+void Main() {
+    Recurso a = new Recurso();
+    Recurso b = new Recurso();
+    a.valor = 10;
+    b.valor = 20;
+    int aa;
+    int bb;
+    lock (a) {
+        lock (b) {
+            a.valor = a.valor + 1;
+            b.valor = b.valor + 1;
+            aa = a.valor;
+            bb = b.valor;
+        }
+    }
+    print(aa);
+    print("\n");
+    print(bb);
+    print("\n");
+}

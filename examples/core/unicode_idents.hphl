@@ -1,0 +1,10 @@
+// unicode_idents.hphl: Validation of UTF-8 identifier support in lexer
+void Main() {
+    // Accented/Unicode variable names (bytes >= 0x80)
+    int valor = 42;
+    string nome = "ana";
+    print("valor = ");
+    print(valor);
+    print("\n");
+    print("done\n");
+}

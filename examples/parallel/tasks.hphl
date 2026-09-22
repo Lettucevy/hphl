@@ -1,0 +1,40 @@
+// tasks.hphl: `task<T>` futures and by-value local capture semantics
+//
+//   task<int> t = spawn { ... return valor; };  (spawn como EXPRESSAO)
+//   int v = t.Wait();                           (espera final e payload)
+//
+// O corpo roda em thread propria (CreateThread); variaveis locais do escopo
+// citadas no corpo sao COPIADAS no momento do spawn (env da tarefa); o corpo
+// nao compartilha memoria com quem lancou. Por isso a saida abaixo e
+// deterministica: t1 ve `v1` = 100 mesmo que depois Main mude a variavel.
+
+void Main() {
+    // ---- task<T> com captura por valor: a copia tira no momento do spawn ----
+    int v1 = 100;
+    task<int> t1 = spawn {
+        return v1 * 2;                // captura v1 = 100 -> 200
+    };
+    v1 = 999;                         // alteracao apos o spawn: nao afeta t1
+
+    int v2 = 5;
+    task<int> t2 = spawn {
+        return v2 + v1;               // captura v2 = 5 e v1untali = 999 -> 1004
+    };
+    task<string> s1 = spawn {
+        return "ok";
+    };
+
+    int r1 = t1.Wait();
+    int r2 = t2.Wait();
+    string sv = s1.Wait();
+
+    print("t1 = ");
+    print(r1);
+    print("\n");
+    print("t2 = ");
+    print(r2);
+    print("\n");
+    print(sv);
+    print("\n");
+    print("done\n");
+}

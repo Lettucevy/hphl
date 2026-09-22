@@ -1,0 +1,134 @@
+// classes.hphl — classes, métodos, construtores, enums, loops, switch (M1)
+
+int contadorGlobal = 1000;
+
+enum Dia {
+    SEGUNDA,
+    TERCA,
+    QUARTA = 10,
+    QUINTA,
+}
+
+class Contador {
+    int valor;
+
+    Contador(int inicial) {
+        this.valor = inicial;
+    }
+
+    void Incrementar() {
+        this.valor++;
+    }
+
+    int ObterValor() {
+        return this.valor;
+    }
+}
+
+class Pessoa {
+    string nome;
+    int idade;
+
+    Pessoa(string n, int i) {
+        this.nome = n;
+        this.idade = i;
+    }
+
+    string Apresentar() {
+        return this.nome + "!";
+    }
+}
+
+int SomarAte(int n) {
+    int soma = 0;
+    for (int i = 1; i <= n; i++) {
+        soma += i;
+    }
+    return soma;
+}
+
+
+void Main() {
+    print("global = ");
+    print(contadorGlobal);
+    print("\n");
+
+    Contador c = new Contador(5);
+    c.Incrementar();
+    c.Incrementar();
+    print("contador = ");
+    print(c.ObterValor());
+    print("\n");
+
+    Pessoa p = new Pessoa("Ana", 30);
+    print("nome = ");
+    print(p.nome);
+    print("\n");
+    print("idade = ");
+    print(p.idade);
+    print("\n");
+    print(p.Apresentar());
+    print("\n");
+
+    int d = Dia.QUINTA;
+    print("quinta = ");
+    print(d);
+    print("\n");
+
+    print("somar 1..100 = ");
+    print(SomarAte(100));
+    print("\n");
+
+    int n = 0;
+    while (n < 5) {
+        n++;
+    }
+    print("while n = ");
+    print(n);
+    print("\n");
+
+    int m = 0;
+    do {
+        m++;
+    } while (m < 3);
+    print("do m = ");
+    print(m);
+    print("\n");
+
+    int soma = 0;
+    for (int i = 0; i < 10; i++) {
+        if (i == 3) {
+            continue;
+        }
+        if (i == 7) {
+            break;
+        }
+        soma += i;
+    }
+    print("soma (skip 3, stop 7) = ");
+    print(soma);
+    print("\n");
+
+    switch (d) {
+        case 1:
+            print("case 1\n");
+            break;
+        case 11:
+            print("case 11\n");
+            break;
+        default:
+            print("default\n");
+            break;
+    }
+
+    float f = (float)2;
+    print("f = ");
+    print(f);
+    print("\n");
+
+    heap int hx = 7;
+    hx = hx + 1;
+    print("hx = ");
+    print(hx);
+    print("\n");
+}

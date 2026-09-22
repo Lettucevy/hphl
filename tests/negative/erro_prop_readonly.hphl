@@ -1,0 +1,10 @@
+class A {
+  private int x;
+  public int X { get { return x; } }
+}
+
+public int Main() {
+  A a = new A();
+  a.X = 5;
+  return 0;
+}

@@ -1,0 +1,2877 @@
+module Semantic;
+
+// ===========================================================================
+// selfhost/src/semantic/semantic.hphl — Análise semântica e checagem de tipos
+// Espelha compiler/src/semantic/semantic.h e semantic.cpp
+// ===========================================================================
+
+import "../ast/ast.hphl";
+
+
+class Semantic {
+    string[2048] vn; // M23 2.8: 256->512->2048 para selfhost E2E
+    string[2048] vt;
+    int vnN;
+    // Item 3 Fase 3: 128->512->2048 (bootstrap do compilador tem muitas funcoes/metodos)
+    string[2048] fnN;
+    string[2048] fnT;
+    int fnN_;
+    int errs;
+    int loopDepth;
+    string[512] cNames; // M23 64->128->512
+    string[512] cBody;
+    string[512] cBase;
+    int cC;
+    string[64] eNames;
+    string[64] eVals;
+    int eC;
+    // M23 2.3: tabela de instÃ¢ncias genÃ©ricas Foo<T> -> Foo_int
+    string[64] genName;
+    string[64] genArgs;
+    string[64] genMangled;
+    int genC;
+    string[64] reflN_;
+    int reflC;
+    string[32] impAlias;
+    string[32] impPath;
+    int impC;
+    string expTy;
+
+    string curOwner;
+    Decl progHead;
+    Node curLambda;
+    int curLambdaBase;
+    Node curTask;
+    int curTaskBase;
+    int fnBaseTop;
+    string curTaskRet;
+    bool curTaskRetSet;
+    string curLambdaRet;
+    bool curLambdaRetSet;
+
+    public Semantic() {
+        this.vnN = 0;
+        this.fnN_ = 0;
+        this.errs = 0;
+        this.loopDepth = 0;
+        this.cC = 0;
+        this.eC = 0;
+        this.genC = 0;
+        this.reflC = 0;
+        this.impC = 0;
+        this.expTy = "";
+        this.curOwner = "";
+        this.curLambda = null;
+        this.curLambdaBase = 0;
+        this.curTask = null;
+        this.curTaskBase = 0;
+        this.fnBaseTop = 0;
+        this.curTaskRet = "";
+        this.curTaskRetSet = false;
+        this.curLambdaRet = "";
+        this.curLambdaRetSet = false;
+    }
+
+    // M23 2.3: mangling Foo<T> -> Foo__int / Foo__string__int
+    string Mangle(string nm, string args) {
+        if (args == "") return nm;
+        string r = nm + "__";
+        for (int i = 0; i < str_len(args); i++) {
+            string ch = sub_str(args, i, 1);
+            if (ch == "," || ch == " ") ch = "_";
+            if (ch == "<" || ch == ">") ch = "_";
+            r = r + ch;
+        }
+        return r;
+    }
+
+    void GenPut(string nm, string args, string mangled) {
+        if (this.genC < 60) {
+            this.genName[this.genC] = nm;
+            this.genArgs[this.genC] = args;
+            this.genMangled[this.genC] = mangled;
+            this.genC = this.genC + 1;
+        }
+    }
+
+    string GenGet(string nm, string args) {
+        for (int i = 0; i < this.genC; i++) {
+            if (this.genName[i] == nm && this.genArgs[i] == args) return this.genMangled[i];
+        }
+        return "";
+    }
+
+    void VarPut(string name, string ty) {
+        // Shadowing lexico: sempre empilha (nunca sobrescreve). Sobrescrever
+        // corrompia tipos outer de forma permanente (ex: VarPut("base", bCls)
+        // do metodo apagava o global `int base`; param `pool` apagava global).
+        // LookupVar/VarGet acham o mais recente; vnN e resetado por Fn.
+        if (this.vnN < 2040) {
+            this.vn[this.vnN] = name;
+            this.vt[this.vnN] = ty;
+            this.vnN = this.vnN + 1;
+        }
+    }
+
+    void VarPush(string name, string ty) {
+        if (this.vnN < 2040) {
+            this.vn[this.vnN] = name;
+            this.vt[this.vnN] = ty;
+            this.vnN = this.vnN + 1;
+        }
+    }
+
+    string VarGet(string name) {
+        for (int i = this.vnN - 1; i >= 0; i--) {
+            if (this.vn[i] == name) return this.vt[i];
+        }
+        return "";
+    }
+
+    void FnPut(string name, string sig) {
+        // cap 500->2040 (acompanha fnN/fnT ampliados)
+        if (this.fnN_ < 2040) {
+            this.fnN[this.fnN_] = name;
+            this.fnT[this.fnN_] = sig;
+            this.fnN_ = this.fnN_ + 1;
+        }
+    }
+
+    string FnGet(string name) {
+        for (int i = this.fnN_ - 1; i >= 0; i--) {
+            if (this.fnN[i] == name) return this.fnT[i];
+        }
+        return "";
+    }
+
+    string FnGetArity(string name, int arity) {
+        for (int i = this.fnN_ - 1; i >= 0; i--) {
+            if (this.fnN[i] == name) {
+                string sig = this.fnT[i];
+                var hash = index_of(sig, "#");
+                if (hash > 0) {
+                    var want = parse_int(sub_str(sig, hash + 1, str_len(sig) - hash - 1));
+                    if ((int)want == arity) return sig;
+                }
+            }
+        }
+        return this.FnGet(name);
+    }
+
+    void ClsPut(string name, string body) {
+        // Item 3 Fase 3: corpo vazio ("") colidia com o sentinela de
+        // "classe nao encontrada" em ClsGet â€” classe sem campos (ex: class
+        // Maker com sÃ³ mÃ©todos) era dada como indefinida. Guarda " " entÃ£o;
+        // FieldType/FieldIdx continuam retornando ""/-1 para qualquer campo.
+        if (body == "") body = " ";
+        this.cNames[this.cC] = name;
+        this.cBody[this.cC] = body;
+        this.cBase[this.cC] = "";
+        this.cC = this.cC + 1;
+    }
+
+    void ClsSetBase(string name, string baseCls) {
+        for (int i = 0; i < this.cC; i++) {
+            if (this.cNames[i] == name) {
+                this.cBase[i] = baseCls;
+                return;
+            }
+        }
+    }
+
+    string ClsBase(string name) {
+        for (int i = 0; i < this.cC; i++) {
+            if (this.cNames[i] == name) return this.cBase[i];
+        }
+        return "";
+    }
+
+    string ClsGet(string name) {
+        for (int i = 0; i < this.cC; i++) {
+            if (this.cNames[i] == name) return this.cBody[i];
+        }
+        return "";
+    }
+
+    string FieldType(string cls, string field) {
+        string b = this.ClsGet(cls);
+        if (b == "") return "";
+        var blen = str_len(b);
+        int start = 0;
+        for (int k = 0; k <= blen; k++) {
+            if (k == blen || sub_str(b, k, 1) == ",") {
+                string item = sub_str(b, start, k - start);
+                var colon = index_of(item, "#");
+                string fname = sub_str(item, colon + 1, str_len(item) - colon - 1);
+                if (fname == field) return sub_str(item, 0, colon);
+                start = k + 1;
+            }
+        }
+        return "";
+    }
+
+    int FieldIdx(string cls, string field) {
+        string b = this.ClsGet(cls);
+        if (b == "") return -1;
+        int off = 0;
+        var blen = str_len(b);
+        int start = 0;
+        for (int k = 0; k <= blen; k++) {
+            if (k == blen || sub_str(b, k, 1) == ",") {
+                string item = sub_str(b, start, k - start);
+                var colon = index_of(item, "#");
+                string fname = sub_str(item, colon + 1, str_len(item) - colon - 1);
+                if (fname == field) return off;
+                off = off + 1;
+                start = k + 1;
+            }
+        }
+        return -1;
+    }
+
+    void EnumPut(string name, string vals) {
+        this.eNames[this.eC] = name;
+        this.eVals[this.eC] = vals;
+        this.eC = this.eC + 1;
+    }
+
+    string EnumSegName(string seg) {
+        string s = seg;
+        var eq = index_of(seg, "=");
+        if ((int)eq > 0) s = sub_str(seg, 0, (int)eq);
+        var po = index_of(s, "(");
+        if ((int)po > 0) s = sub_str(s, 0, (int)po);
+        return s;
+    }
+
+    int EnumVal(string ename, string variant) {
+        for (int i = 0; i < this.eC; i++) {
+            if (this.eNames[i] != ename) continue;
+            string vs = this.eVals[i];
+            var blen = str_len(vs);
+            int cur = 0;
+            int start = 0;
+            for (int k = 0; k <= blen; k++) {
+                if (k == blen || sub_str(vs, k, 1) == ",") {
+                    string seg = sub_str(vs, start, k - start);
+                    var eq = index_of(seg, "=");
+                    if ((int)eq > 0) {
+                        string sv = sub_str(seg, (int)eq + 1, str_len(seg) - (int)eq - 1);
+                        var po2 = index_of(sv, "(");
+                        string sv2 = sv;
+                        if ((int)po2 >= 0) sv2 = sub_str(sv, (int)po2 + 1, str_len(sv) - (int)po2 - 1);
+                        var pv = parse_int(sv2);
+                        cur = (int)pv;
+                        seg = sub_str(seg, 0, (int)eq);
+                    }
+                    if (this.EnumSegName(seg) == variant) return cur;
+                    cur = cur + 1;
+                    start = k + 1;
+                }
+            }
+        }
+        return -1;
+    }
+
+    string EnumSegPayload(string ename, string variant) {
+        for (int i = 0; i < this.eC; i++) {
+            if (this.eNames[i] != ename) continue;
+            string vs = this.eVals[i];
+            var blen = str_len(vs);
+            int start = 0;
+            for (int k = 0; k <= blen; k++) {
+                if (k == blen || sub_str(vs, k, 1) == ",") {
+                    string seg = sub_str(vs, start, k - start);
+                    if (this.EnumSegName(seg) == variant) {
+                        var po = index_of(seg, "(");
+                        if ((int)po < 0) return "";
+                        var pc = index_of(seg, ")");
+                        if ((int)pc < 0) return "";
+                        return sub_str(seg, (int)po + 1, (int)pc - (int)po - 1);
+                    }
+                    start = k + 1;
+                }
+            }
+        }
+        return "";
+    }
+
+    int EnumPayloadCount(string ename, string variant) {
+        string inner = this.EnumSegPayload(ename, variant);
+        if (inner == "") return 0;
+        int c = 1;
+        for (int i = 0; i < str_len(inner); i++) {
+            if (sub_str(inner, i, 1) == "|") c = c + 1;
+        }
+        return c;
+    }
+
+    string EnumPayloadTy(string ename, string variant, int idx) {
+        string inner = this.EnumSegPayload(ename, variant);
+        int cur = 0;
+        int start = 0;
+        int n = str_len(inner);
+        for (int i = 0; i <= n; i++) {
+            string ch = "|";
+            if (i < n) ch = sub_str(inner, i, 1);
+            if (ch == "|") {
+                if (cur == idx) {
+                    string part = sub_str(inner, start, i - start);
+                    var hh = index_of(part, "#");
+                    if ((int)hh > 0) return sub_str(part, 0, (int)hh);
+                    return part;
+                }
+                cur = cur + 1;
+                start = i + 1;
+            }
+        }
+        return "";
+    }
+
+    bool IsRichEnum(string name) {
+        string b = this.BaseOfTy(name);
+        for (int i = 0; i < this.eC; i++) {
+            if (this.eNames[i] != b) continue;
+            if (contains(this.eVals[i], "(")) return true;
+        }
+        return false;
+    }
+
+    string EnumOfVariant(string variant) {
+        for (int i = 0; i < this.eC; i++) {
+            string vs = this.eVals[i];
+            var blen = str_len(vs);
+            int start = 0;
+            for (int k = 0; k <= blen; k++) {
+                if (k == blen || sub_str(vs, k, 1) == ",") {
+                    string seg = sub_str(vs, start, k - start);
+                    if (this.EnumSegName(seg) == variant) return this.eNames[i];
+                    start = k + 1;
+                }
+            }
+        }
+        return "";
+    }
+
+    bool IsEnum(string name) {
+        for (int i = 0; i < this.eC; i++) {
+            if (this.eNames[i] == name) return true;
+        }
+        return false;
+    }
+
+    // compatibilidade de tipos v1: iguais, ambos numericos, ou envolvendo
+    // null / desconhecido (""). M23.1 2.3: aceita tambÃ©m "T" (typeParam) para
+    // monomorfizaÃ§Ã£o â€” o tipo real Ã© inferido pelo contexto.
+    bool Compat(string a, string b) {
+        if (a == "" || b == "") return true;
+        if (a == b) return true;
+        if (this.NoSp(a) == this.NoSp(b)) return true;
+        if (this.NormOptRes(a) == this.NormOptRes(b)) return true;
+        if (starts_with(a, "(") && starts_with(b, "(")) return true;
+        if (starts_with(a, "func") && starts_with(b, "func")) return true;
+        if (a == "null" || b == "null") return true;
+        if (this.IsTyParam(a) || this.IsTyParam(b)) return true;
+        if (this.IsNumTy(a) && this.IsNumTy(b)) return true;
+        if ((this.IsNumTy(a) && this.IsEnum(b)) || (this.IsNumTy(b) && this.IsEnum(a))) return true;
+        if ((a == "None" && this.IsOptionTy(b)) || (b == "None" && this.IsOptionTy(a))) return true;
+        if (((a == "Ok" || a == "Err") && this.IsResultTy(b)) || ((b == "Ok" || b == "Err") && this.IsResultTy(a))) return true;
+        if ((this.IsOptionTy(a) && this.IsOptionTy(b)) || (this.IsResultTy(a) && this.IsResultTy(b))) {
+            if (this.OptHead(a) != "" && this.OptElem(a) == this.OptElem(b)) return true;
+        }
+        string ba0 = this.BaseOfTy(a);
+        string bb0 = this.BaseOfTy(b);
+        if ((ba0 == "char" && (bb0 == "int" || bb0 == "uint")) ||
+            (bb0 == "char" && (ba0 == "int" || ba0 == "uint"))) return true;
+        string baseA = a;
+        var uA = index_of(a, "__");
+        if (uA > 0) baseA = sub_str(a, 0, uA);
+        string baseB = b;
+        var uB = index_of(b, "__");
+        if (uB > 0) baseB = sub_str(b, 0, uB);
+        if (baseA == baseB) return true;
+        string cur = a;
+        int guard = 0;
+        while (cur != "" && guard < 32) {
+            guard = guard + 1;
+            string nb = "";
+            for (int i = 0; i < this.cC; i++) {
+                if (this.cNames[i] == cur) { nb = this.cBase[i]; break; }
+            }
+            if (nb == "") break;
+            if (nb == b) return true;
+            cur = nb;
+        }
+        if (this.ClsGet(baseA) != "" || this.ClsGet(baseB) != "") return true;
+        return false;
+    }
+
+    void AddErr(string msg) {
+        println("[sem] erro: " + msg);
+        this.errs = this.errs + 1;
+    }
+
+    bool IsNumTy(string t) {
+        string b = this.BaseOfTy(t);
+        return b == "int" || b == "uint" || b == "float" || b == "double" ||
+               b == "bool" || b == "u8" || b == "u16" || b == "u32" || b == "u64";
+    }
+
+    bool IsFloatTy(string t) {
+        string b = this.BaseOfTy(t);
+        return b == "float" || b == "double";
+    }
+
+    bool IsReflected(string name) {
+        for (int i = 0; i < this.reflC; i++) {
+            if (this.reflN_[i] == name) return true;
+        }
+        return false;
+    }
+
+    bool HasGetter(string cls, string prop) {
+        string cur = cls;
+        int guard = 0;
+        while (cur != "" && guard < 32) {
+            guard = guard + 1;
+            if (this.FnGet(cur + ".get_" + prop) != "") return true;
+            string nb = "";
+            for (int i = 0; i < this.cC; i++) {
+                if (this.cNames[i] == cur) { nb = this.cBase[i]; break; }
+            }
+            cur = nb;
+        }
+        return false;
+    }
+
+    bool HasSetter(string cls, string prop) {
+        string cur = cls;
+        int guard = 0;
+        while (cur != "" && guard < 32) {
+            guard = guard + 1;
+            if (this.FnGet(cur + ".set_" + prop) != "") return true;
+            string nb = "";
+            for (int i = 0; i < this.cC; i++) {
+                if (this.cNames[i] == cur) { nb = this.cBase[i]; break; }
+            }
+            cur = nb;
+        }
+        return false;
+    }
+
+    bool IsModuleRoot(string name) {
+        if (name == "std") {
+            for (int i = 0; i < this.impC; i++) {
+                if (this.impPath[i] == "std" || starts_with(this.impPath[i], "std.")) return true;
+            }
+            return false;
+        }
+        for (int i = 0; i < this.impC; i++) {
+            if (this.impAlias[i] == name) return true;
+        }
+        return false;
+    }
+
+    string OptHead(string t) {
+        var lb = index_of(t, "<");
+        string h = t;
+        if ((int)lb > 0) h = sub_str(t, 0, (int)lb);
+        if (h == "Option" || h == "option") return "option";
+        if (h == "Result" || h == "result") return "result";
+        return h;
+    }
+
+    string OptElem(string t) {
+        var lb = index_of(t, "<");
+        if ((int)lb < 0) return "";
+        return sub_str(t, (int)lb + 1, str_len(t) - (int)lb - 2);
+    }
+
+    string TrimSp(string s) {
+        while (str_len(s) > 0 && sub_str(s, 0, 1) == " ") s = sub_str(s, 1, str_len(s) - 1);
+        while (str_len(s) > 0 && sub_str(s, str_len(s) - 1, 1) == " ") s = sub_str(s, 0, str_len(s) - 1);
+        return s;
+    }
+
+    string ResT(string t) {
+        string inner = this.OptElem(t);
+        int depth = 0;
+        for (int i = 0; i < str_len(inner); i++) {
+            string ch = sub_str(inner, i, 1);
+            if (ch == "<") depth = depth + 1;
+            else if (ch == ">") depth = depth - 1;
+            else if (ch == "," && depth == 0) return this.TrimSp(sub_str(inner, 0, i));
+        }
+        return this.TrimSp(inner);
+    }
+
+    string ResE(string t) {
+        string inner = this.OptElem(t);
+        int depth = 0;
+        for (int i = 0; i < str_len(inner); i++) {
+            string ch = sub_str(inner, i, 1);
+            if (ch == "<") depth = depth + 1;
+            else if (ch == ">") depth = depth - 1;
+            else if (ch == "," && depth == 0) return this.TrimSp(sub_str(inner, i + 1, str_len(inner) - i - 1));
+        }
+        return "";
+    }
+
+    bool IsOptionTy(string t) {
+        return this.OptHead(t) == "option";
+    }
+
+    bool IsResultTy(string t) {
+        return this.OptHead(t) == "result";
+    }
+
+    string NoSp(string s) {
+        string r = "";
+        for (int i = 0; i < str_len(s); i++) {
+            string ch = sub_str(s, i, 1);
+            if (ch != " ") r = r + ch;
+        }
+        return r;
+    }
+
+    string NormOptRes(string s) {
+        string r = "";
+        int i = 0;
+        int n = str_len(s);
+        while (i < n) {
+            string ch = sub_str(s, i, 1);
+            if (ch == " ") { i = i + 1; continue; }
+            if (sub_str(s, i, 7) == "Option<" || sub_str(s, i, 7) == "option<") {
+                r = r + "option<";
+                i = i + 7;
+                continue;
+            }
+            if (sub_str(s, i, 7) == "Result<" || sub_str(s, i, 7) == "result<") {
+                r = r + "result<";
+                i = i + 7;
+                continue;
+            }
+            r = r + ch;
+            i = i + 1;
+        }
+        return r;
+    }
+
+    bool IsAsyncFn(string name) {
+        Decl dd = this.progHead;
+        while (dd != null) {
+            if (dd.kind == PK.Fn && dd.owner == "" && dd.name == name && dd.isAsync) return true;
+            dd = dd.next;
+        }
+        return false;
+    }
+
+    bool IsAsyncMethod(string owner, string name) {
+        string b = owner;
+        var bk = index_of(owner, "<");
+        if (bk > 0) b = sub_str(owner, 0, bk);
+        Decl dd = this.progHead;
+        while (dd != null) {
+            if (dd.kind == PK.Fn && dd.owner == b && dd.name == name && dd.isAsync) return true;
+            dd = dd.next;
+        }
+        return false;
+    }
+
+    bool IsInterface(string t) {
+        string b = this.BaseOfTy(t);
+        Decl dd = this.FindClassDecl(b);
+        return dd != null && dd.kind == PK.Interface;
+    }
+
+    string Wider(string a, string b) {
+        string ba = this.BaseOfTy(a);
+        string bb = this.BaseOfTy(b);
+        if (ba == "double" || bb == "double") return "double";
+        if (ba == "float" || bb == "float") return "float";
+        if (ba == "uint" || bb == "uint") return "uint";
+        return "int";
+    }
+
+    void addLambdaCapture(Node lam, string name, string ty) {
+        Pm it = lam.lamCaptures;
+        while (it != null) {
+            if (it.name == name) return;
+            it = it.next;
+        }
+        Pm c = mkParam(ty, name);
+        if (lam.lamCaptures == null) {
+            lam.lamCaptures = c;
+        } else {
+            pmAdd(lam.lamCaptures, c);
+        }
+    }
+
+    string LookupVar(string name) {
+        for (int i = this.vnN - 1; i >= 0; i--) {
+            if (this.vn[i] == name) {
+                if (this.curLambda != null && i < this.curLambdaBase && i >= this.fnBaseTop) {
+                    this.addLambdaCapture(this.curLambda, name, this.vt[i]);
+                }
+                if (this.curLambda == null && this.curTask != null && i < this.curTaskBase && i >= this.fnBaseTop) {
+                    this.addLambdaCapture(this.curTask, name, this.vt[i]);
+                }
+                return this.vt[i];
+            }
+        }
+        if (name == "this" && this.curOwner != "") {
+            if (this.curLambda != null) {
+                this.addLambdaCapture(this.curLambda, "this", this.curOwner);
+            }
+            return this.curOwner;
+        }
+        if (this.curOwner != "") {
+            string ft = this.FieldType(this.curOwner, name);
+            if (ft != "") {
+                if (this.curLambda != null) {
+                    this.addLambdaCapture(this.curLambda, "this", this.curOwner);
+                }
+                return ft;
+            }
+        }
+        if (name == "N" || name == "K" || name == "V" || name == "M" || name == "T" || name == "SIZE" || name == "CAP" || name == "LEN") return "int";
+        return "";
+    }
+
+    Decl FindClassDecl(string name) {
+        Decl dd = this.progHead;
+        while (dd != null) {
+            if ((dd.kind == PK.Class || dd.kind == PK.Struct || dd.kind == PK.Actor || dd.kind == PK.Interface) && dd.name == name) return dd;
+            dd = dd.next;
+        }
+        return null;
+    }
+
+    bool IsBuiltinGenericTy(string name) {
+        return name == "list" || name == "map" || name == "channel" ||
+               name == "Option" || name == "option" || name == "Result" || name == "result" ||
+               name == "task" || name == "mutex" || name == "barrier" ||
+               name == "semaphore" || name == "event";
+    }
+
+    bool HasFnGenericArity(string name, int gargc) {
+        Decl dd = this.progHead;
+        while (dd != null) {
+            if (dd.kind == PK.Fn && dd.owner == "" && dd.name == name && dd.genArgsC == gargc) return true;
+            dd = dd.next;
+        }
+        return false;
+    }
+
+    bool HasAnyFnDecl(string name) {
+        Decl dd = this.progHead;
+        while (dd != null) {
+            if (dd.kind == PK.Fn && dd.owner == "" && dd.name == name) return true;
+            dd = dd.next;
+        }
+        return false;
+    }
+
+    Decl FindGenericFnDecl(string name, int gargc) {
+        Decl dd = this.progHead;
+        Decl any = null;
+        while (dd != null) {
+            if (dd.kind == PK.Fn && dd.owner == "" && dd.name == name && dd.genArgsC > 0) {
+                if (dd.genArgsC == gargc) return dd;
+                if (any == null) any = dd;
+            }
+            dd = dd.next;
+        }
+        if (gargc == 0) return any;
+        return null;
+    }
+
+    string TrimSpaces(string s) {
+        int n = str_len(s);
+        int a = 0;
+        while (a < n && sub_str(s, a, 1) == " ") a = a + 1;
+        int b = n;
+        while (b > a && sub_str(s, b - 1, 1) == " ") b = b - 1;
+        return sub_str(s, a, b - a);
+    }
+
+    bool WhereHas(Decl d, string c) {
+        string cons = d.whereCons;
+        int n = str_len(cons);
+        int start = 0;
+        for (int i = 0; i <= n; i++) {
+            if (i == n || sub_str(cons, i, 1) == ",") {
+                string part = this.TrimSpaces(sub_str(cons, start, i - start));
+                if (part == c) return true;
+                start = i + 1;
+            }
+        }
+        return false;
+    }
+
+    string BaseOfTy(string t) {
+        var u = index_of(t, "__");
+        if (u > 0) return sub_str(t, 0, u);
+        var lb = index_of(t, "<");
+        if (lb > 0) return sub_str(t, 0, lb);
+        return t;
+    }
+
+    bool SatisfiesStruct(string t) {
+        string b = this.BaseOfTy(t);
+        if (b == "int" || b == "uint" || b == "u8" || b == "u16" || b == "u32" || b == "u64" ||
+            b == "float" || b == "double" || b == "bool" || b == "char") return true;
+        if (this.IsEnum(b)) return true;
+        Decl cd = this.FindClassDecl(b);
+        if (cd != null) return cd.kind == PK.Struct;
+        return false;
+    }
+
+    bool SatisfiesClass(string t) {
+        string b = this.BaseOfTy(t);
+        if (b == "string") return true;
+        if (this.IsEnum(b)) return true;
+        if (b == "list" || b == "map" || b == "task" || b == "channel" || b == "func") return true;
+        Decl cd = this.FindClassDecl(b);
+        if (cd != null) return cd.kind != PK.Struct;
+        return false;
+    }
+
+    bool CheckWhereBound(string wp, string bound, Decl fd) {
+        if (wp == "" || bound == "" || this.IsTyParam(bound)) return true;
+        if (this.WhereHas(fd, "struct") && !this.SatisfiesStruct(bound)) {
+            this.AddErr("constraint 'struct' violada pelo argumento de tipo '" + wp + "=" + bound + "'");
+            return false;
+        }
+        if (this.WhereHas(fd, "class") && !this.SatisfiesClass(bound)) {
+            this.AddErr("constraint 'class' violada pelo argumento de tipo '" + wp + "=" + bound + "'");
+            return false;
+        }
+        return true;
+    }
+
+    public int CheckProgram(Decl prog) {
+        this.progHead = prog;
+        // builtins de I/O disponÃ­veis sem declaraÃ§Ã£o
+        this.FnPut("print", "void#1");
+        this.FnPut("println", "void#1");
+        this.FnPut("assert", "void#1");
+        this.FnPut("str_len", "int#1");
+        this.FnPut("sub_str", "string#3");
+        this.FnPut("contains", "bool#2");
+        this.FnPut("index_of", "int#2");
+        this.FnPut("panic", "void#1");
+        this.FnPut("parse_int", "int#1");
+        this.FnPut("ord", "int#1");
+        this.FnPut("chr", "string#1");
+        this.FnPut("hphl_gas_str", "string#1");
+        // M15-fix5: builtins de arquivo usados pelo driver/codegen
+        this.FnPut("read_file", "string#1");
+        this.FnPut("write_file", "bool#2");
+        this.FnPut("append_file", "bool#2");
+        this.FnPut("file_exists", "bool#1");
+        this.FnPut("file_size", "int#1");
+        this.FnPut("remove_file", "bool#1");
+        this.FnPut("file_delete", "bool#1");
+        this.FnPut("file_copy", "bool#2");
+        this.FnPut("toString", "string#1");
+        this.FnPut("to_string", "string#1");
+        this.FnPut("img_grayscale", "list<int>#1");
+        this.FnPut("img_flip_h", "list<int>#3");
+        this.FnPut("img_resize", "list<int>#5");
+        this.FnPut("img_blur", "list<int>#4");
+        this.FnPut("img_ppm_save", "bool#4");
+        this.FnPut("img_ppm_load", "list<int>#1");
+        this.FnPut("img_png_save", "bool#4");
+        // M12 / runtime math & misc builtins
+        this.FnPut("clock_ns", "int#0");
+        this.FnPut("arena_reset", "void#0");
+        this.FnPut("sleep_ms", "int#1");
+        this.FnPut("env_var", "string#1");
+        this.FnPut("random", "float#0");
+        this.FnPut("random_int", "int#2");
+        this.FnPut("floor", "float#1");
+        this.FnPut("ceil", "float#1");
+        this.FnPut("round", "float#1");
+        this.FnPut("fmod", "float#2");
+        this.FnPut("pow", "float#2");
+        this.FnPut("sqrt", "float#1");
+        this.FnPut("sin", "float#1");
+        this.FnPut("cos", "float#1");
+        this.FnPut("tan", "float#1");
+        this.FnPut("log", "float#1");
+        this.FnPut("exp", "float#1");
+        this.FnPut("PI", "float#0");
+        this.FnPut("E", "float#0");
+        this.FnPut("trim", "string#1");
+        this.FnPut("starts_with", "bool#2");
+        this.FnPut("ends_with", "bool#2");
+        this.FnPut("up_case", "string#1");
+        this.FnPut("down_case", "string#1");
+        this.FnPut("toUpper", "string#1");
+        this.FnPut("toLower", "string#1");
+        this.FnPut("char_at", "string#2");
+        this.FnPut("charAt", "string#2");
+        this.FnPut("last_index_of", "int#2");
+        this.FnPut("lastIndexOf", "int#2");
+        this.FnPut("padLeft", "string#3");
+        this.FnPut("padRight", "string#3");
+        this.FnPut("format", "string#2");
+        this.FnPut("mem_alloc", "ptr#1");
+        this.FnPut("mem_free", "void#1");
+        this.FnPut("mem_zero", "void#2");
+        this.FnPut("mem_poke_u32", "void#3");
+        this.FnPut("mem_poke_i32", "void#3");
+        this.FnPut("mem_poke_i64", "void#3");
+        this.FnPut("mem_poke_f32", "void#3");
+        this.FnPut("mem_poke_f64", "void#3");
+        this.FnPut("mem_poke_ptr", "void#3");
+        this.FnPut("mem_peek_u32", "int#2");
+        this.FnPut("mem_peek_i32", "int#2");
+        this.FnPut("mem_peek_i64", "int#2");
+        this.FnPut("mem_peek_f32", "float#2");
+        this.FnPut("mem_peek_f64", "float#2");
+        this.FnPut("mem_peek_ptr", "ptr#2");
+        Decl d = prog;
+        while (d != null) {
+            if (d.kind == PK.GVar) {
+                this.VarPut(d.name, d.retType);
+            } else if (d.kind == PK.GVarArray) {
+                this.VarPut(d.name, d.fullTy != "" ? d.fullTy : (d.retType + "[]"));
+            } else if (d.kind == PK.Enum) {
+                this.EnumPut(d.name, d.owner);
+            } else if (d.kind == PK.Class || d.kind == PK.Struct || d.kind == PK.Actor) {
+                string body = "";
+                Pm pf = d.params;
+                while (pf != null) {
+                    if (body != "") body = body + ",";
+                    body = body + pf.type + "#" + pf.name;
+                    pf = pf.next;
+                }
+                if (d.fullBases != "") {
+                    string baseBody = this.ClsGet(d.fullBases);
+                    if (baseBody != "" && baseBody != " ") {
+                        if (body != "") body = baseBody + "," + body;
+                        else body = baseBody;
+                    }
+                }
+                this.ClsPut(d.name, body);
+                if (d.fullBases != "") this.ClsSetBase(d.name, d.fullBases);
+            } else if (d.kind == PK.Import) {
+                if (this.impC < 32) {
+                    this.impAlias[this.impC] = d.name;
+                    this.impPath[this.impC] = d.retType;
+                    this.impC = this.impC + 1;
+                }
+            } else if (d.kind == PK.Reflect) {
+                Decl cd = this.FindClassDecl(d.name);
+                if (cd == null) {
+                    this.AddErr("reflect: classe '" + d.name + "' nao definida");
+                } else if (this.reflC < 64) {
+                    this.reflN_[this.reflC] = d.name;
+                    this.reflC = this.reflC + 1;
+                }
+            } else {
+                int fullArity = 0;
+                int reqArity = 0;
+                bool seenDef = false;
+                Pm pp2 = d.params;
+                while (pp2 != null) {
+                    fullArity = fullArity + 1;
+                    if (pp2.defVal != null) seenDef = true;
+                    else if (!seenDef) reqArity = reqArity + 1;
+                    pp2 = pp2.next;
+                }
+                for (int a = reqArity; a <= fullArity; a++) {
+                    if (d.owner != "") {
+                        this.FnPut(d.owner + "." + d.name, d.retType + "#" + a);
+                    } else {
+                        this.FnPut(d.name, d.retType + "#" + a);
+                    }
+                }
+            }
+            d = d.next;
+        }
+        int baseTop = this.vnN;
+        this.fnBaseTop = baseTop;
+        d = prog;
+        while (d != null) {
+            if (d.kind == PK.GVar && d.init != null) {
+                this.vnN = baseTop;
+                string it = this.TypeOfExpr(d.init);
+                this.vnN = baseTop;
+                if (!this.Compat(it, d.retType)) {
+                    this.AddErr("inicializador de '" + d.name + "' tem tipo '" + it +
+                             "', declarado '" + d.retType + "'");
+                }
+            } else if (d.kind == PK.GVarArray && d.init != null) {
+                this.vnN = baseTop;
+                if (d.init.kind == NK.ArrayInit) {
+                    string at = d.fullTy != "" ? d.fullTy : (d.retType + "[]");
+                    this.CheckArrCsv(d.init.text, at);
+                } else {
+                    this.TypeOfExpr(d.init);
+                }
+                this.vnN = baseTop;
+            } else if (d.kind == PK.Fn) {
+                println("[chk] " + d.name);
+                this.curOwner = d.owner;
+                this.vnN = baseTop;
+                Pm pm = d.params;
+                while (pm != null) {
+                    string pty = pm.type;
+                    if (pm.genArgsC > 0) {
+                        string gcsv = "";
+                        for (int gi = 0; gi < pm.genArgsC; gi++) {
+                            if (gi > 0) gcsv = gcsv + ", ";
+                            gcsv = gcsv + pm.genArgs[gi];
+                        }
+                        pty = pm.type + "<" + gcsv + ">";
+                    }
+                    this.VarPut(pm.name, pty);
+                    pm = pm.next;
+                }
+                if (d.owner != "") {
+                    string bCls = this.ClsBase(d.owner);
+                    if (bCls != "") {
+                        this.VarPut("base", bCls);
+                    }
+                }
+                this.CheckStmt(d.body, d.retType);
+                this.vnN = baseTop;
+                this.curOwner = "";
+            }
+            d = d.next;
+        }
+        // M23.1 2.3: registra mÃ©todos das instÃ¢ncias monomorfizadas descobertas.
+        // Para cada instÃ¢ncia "Caixa__int", registra "Caixa__int.Obter" (e outros
+        // mÃ©todos da classe base) com a mesma assinatura.
+        int mi = 0;
+        while (mi < this.genC) {
+            string baseNm = this.genName[mi];
+            string mangled = this.genMangled[mi];
+            // varre os mÃ©todos da classe base
+            Decl mSrc = prog;
+            while (mSrc != null) {
+                if (mSrc.kind == PK.Fn && mSrc.owner == baseNm) {
+                    int arity = 0;
+                    Pm pp3 = mSrc.params;
+                    while (pp3 != null) { arity = arity + 1; pp3 = pp3.next; }
+                    this.FnPut(mangled + "." + mSrc.name, mSrc.retType + "#" + arity);
+                }
+                mSrc = mSrc.next;
+            }
+            mi = mi + 1;
+        }
+        return this.errs;
+    }
+
+    Stmt CheckStmt(Stmt s, string retTy) {
+        if (s == null) return null;
+        if (s.kind == SK.VarDecl && s.isArray) {
+            string at = s.fullTy != "" ? s.fullTy : (s.name + "[]");
+            this.VarPut(s.text, at);
+            if (s.expr != null) {
+                if (s.expr.kind == NK.ArrayInit) {
+                    this.CheckArrCsv(s.expr.text, at);
+                } else {
+                    string vt = this.TypeOfExpr(s.expr);
+                    if (vt != "" && vt != at) {
+                        this.AddErr("init de array '" + s.text + "' tem tipo '" + vt +
+                                 "', declarado '" + at + "'");
+                    }
+                }
+            }
+            return null;
+        }
+        if (s.kind == SK.VarDecl) {
+            string dt = s.fullTy != "" ? s.fullTy : s.name;
+            if (s.expr != null && s.expr.kind == NK.Lambda && starts_with(dt, "func")) {
+                this.VarPut(s.text, dt);
+                s.expr.lamSelfName = s.text;
+            }
+            string vt = "";
+            string saveExpD = this.expTy;
+            if (dt != "var") this.expTy = dt;
+            if (s.expr != null) vt = this.TypeOfExpr(s.expr);
+            this.expTy = saveExpD;
+            if (dt == "var") {
+                if (vt == "") {
+                    this.AddErr("var '" + s.text + "' sem tipo inferivel");
+                    vt = "int";
+                }
+                dt = vt;
+                s.name = dt;
+                s.fullTy = dt;
+            } else if (s.expr != null && vt != "" && vt != "null") {
+                if (str_len(vt) > str_len(dt) &&
+                    sub_str(vt, 0, str_len(dt)) == dt &&
+                    str_len(vt) >= str_len(dt) + 2 &&
+                    sub_str(vt, str_len(dt), 2) == "__") {
+                    dt = vt;
+                } else if (this.ClsGet(vt) != "" && !this.IsInterface(dt)) {
+                    dt = vt;
+                } else if (!this.Compat(vt, dt) && !(starts_with(dt, "list") && starts_with(vt, "list")) && !(starts_with(dt, "map") && starts_with(vt, "map"))) {
+                    this.AddErr("init de '" + s.text + "' tem tipo '" + vt +
+                             "', declarado '" + dt + "'");
+                }
+            }
+            this.VarPut(s.text, s.fullTy != "" ? s.fullTy : dt);
+        } else if (s.kind == SK.Assign && s.targetMember != null &&
+                   s.targetMember.kind == NK.Index) {
+            // M15-fix: elemento de campo-array: this.vn[i] = x
+            string it4 = this.TypeOfExpr(s.targetMember.right);
+            if (it4 != "" && !this.IsNumTy(it4)) {
+                this.AddErr("indice exige numerico");
+            }
+            string bt4 = this.TypeOfExpr(s.targetMember.left);
+            string et4 = (str_len(bt4) > 2) ? sub_str(bt4, 0, str_len(bt4) - 2) : "";
+            string v4 = this.TypeOfExpr(s.expr);
+            if (v4 != "" && et4 != "" && !this.Compat(v4, et4)) {
+                this.AddErr("valor para elemento eh '" + v4 + "', array de '" + et4 + "'");
+            }
+        } else if (s.kind == SK.Assign && s.targetMember != null) {
+            string bt0 = this.TypeOfExpr(s.targetMember.left);
+            if (s.op == "=" && s.targetMember.kind == NK.Member && this.FieldIdx(bt0, s.targetMember.text) < 0 && this.HasSetter(bt0, s.targetMember.text)) {
+                Node sc = new Node();
+                sc.kind = NK.Call;
+                sc.text = "set_" + s.targetMember.text;
+                sc.recv = s.targetMember.left;
+                sc.arg = s.expr;
+                s.kind = SK.ExprStmt;
+                s.expr = sc;
+                s.targetMember = null;
+                s.name = "";
+                s.op = "";
+                this.TypeOfExpr(sc);
+                return null;
+            }
+            string bt = this.TypeOfExpr(s.targetMember.left);
+            if (this.FieldIdx(bt, s.targetMember.text) < 0) {
+                this.AddErr("campo '" + s.targetMember.text + "' nao existe em '" + bt + "'");
+            }
+            string ft = this.FieldType(bt, s.targetMember.text);
+            string vt3 = this.TypeOfExpr(s.expr);
+            if (ft != "" && !this.Compat(vt3, ft)) {
+                this.AddErr("campo '" + s.targetMember.text + "' eh '" + ft +
+                            "', recebeu '" + vt3 + "'");
+            }
+        } else if (s.kind == SK.Assign && s.targetIdx != null) {
+            string at = this.LookupVar(s.name);
+            string it = this.TypeOfExpr(s.targetIdx);
+            if (it != "" && !this.IsNumTy(it)) {
+                this.AddErr("indice de array exige numerico");
+            }
+            if (at == "list" || starts_with(at, "list<")) {
+                string et5 = "int";
+                if (starts_with(at, "list<")) et5 = sub_str(at, 5, str_len(at) - 6);
+                string vt2 = this.TypeOfExpr(s.expr);
+                if (vt2 != "" && et5 != "" && !this.Compat(vt2, et5)) {
+                    this.AddErr("valor para elemento eh '" + vt2 + "', array de '" + et5 + "'");
+                }
+            } else {
+                if (at == "" || !contains(at, "[")) {
+                    this.AddErr("'" + s.name + "' nao eh array");
+                }
+                var brk2 = index_of(at, "[");
+                string et5 = (brk2 > 0) ? sub_str(at, 0, brk2) : "";
+                string vt2 = this.TypeOfExpr(s.expr);
+                if (vt2 != "" && et5 != "" && !this.Compat(vt2, et5)) {
+                    this.AddErr("valor para elemento eh '" + vt2 + "', array de '" + et5 + "'");
+                }
+            }
+        } else if (s.kind == SK.Assign) {
+            string tt = this.LookupVar(s.name);
+            if (tt == "") {
+                this.AddErr("atribuicao a variavel nao declarada '" + s.name + "'");
+            }
+            string vt = this.TypeOfExpr(s.expr);
+            if (tt != "" && vt != "" && !this.Compat(vt, tt)) {
+                this.AddErr("atribuicao: tipo '" + vt + "' em variavel '" + s.name +
+                         "' do tipo '" + tt + "'");
+            }
+            if (s.op != "=" && tt != "" && !this.IsNumTy(tt)) {
+                this.AddErr("operador composto '" + s.op + "' exige numerico ('" +
+                         s.name + "' eh '" + tt + "')");
+            }
+        } else if (s.kind == SK.For) {
+            if (s.initS != null) this.CheckStmt(s.initS, retTy);
+            string ct2 = "";
+            if (s.expr != null) ct2 = this.TypeOfExpr(s.expr);
+            if (ct2 != "bool" && ct2 != "") {
+                this.AddErr("condicao de 'for' tem tipo '" + ct2 + "' (esperado bool)");
+            }
+            this.loopDepth = this.loopDepth + 1;
+            this.CheckStmt(s.body, retTy);
+            this.loopDepth = this.loopDepth - 1;
+            if (s.stepS != null) this.CheckStmt(s.stepS, retTy);
+        } else if (s.kind == SK.If || s.kind == SK.While) {
+            string ct = this.TypeOfExpr(s.expr);
+            if (ct != "bool" && ct != "") {
+                this.AddErr("condicao de '" + (s.kind == SK.If ? "if" : "while") +
+                         "' tem tipo '" + ct + "' (esperado bool)");
+            }
+            this.loopDepth = this.loopDepth + 1;
+            this.CheckStmt(s.body, retTy);
+            this.loopDepth = this.loopDepth - 1;
+            if (s.elseBody != null) this.CheckStmt(s.elseBody, retTy);
+        } else if (s.kind == SK.Do) {
+            string ct = this.TypeOfExpr(s.expr);
+            if (ct != "bool" && ct != "") {
+                this.AddErr("condicao de 'do' tem tipo '" + ct + "' (esperado bool)");
+            }
+            this.loopDepth = this.loopDepth + 1;
+            this.CheckStmt(s.body, retTy);
+            this.loopDepth = this.loopDepth - 1;
+        } else if (s.kind == SK.Switch) {
+            string st = this.TypeOfExpr(s.expr);
+            this.loopDepth = this.loopDepth + 1;
+            Stmt cs = s.body;
+            while (cs != null) {
+                if (cs.expr != null) {
+                    string cv = this.TypeOfExpr(cs.expr);
+                    if (cv != "" && st != "" && !this.Compat(cv, st)) {
+                        this.AddErr("case tipo '" + cv + "' incompativel com switch '" + st + "'");
+                    }
+                }
+                this.CheckStmt(cs.body, retTy);
+                cs = cs.next;
+            }
+            this.loopDepth = this.loopDepth - 1;
+        } else if (s.kind == SK.Return) {
+            if (this.curTask != null && this.curLambda == null) {
+                if (s.expr != null) {
+                    string rt = this.TypeOfExpr(s.expr);
+                    if (!this.curTaskRetSet) {
+                        this.curTaskRet = rt;
+                        this.curTaskRetSet = true;
+                    }
+                } else {
+                    if (!this.curTaskRetSet) {
+                        this.curTaskRet = "void";
+                        this.curTaskRetSet = true;
+                    }
+                }
+            }
+            if (this.curLambda != null) {
+                if (s.expr != null) {
+                    string rt = this.TypeOfExpr(s.expr);
+                    if (!this.curLambdaRetSet) {
+                        this.curLambdaRet = rt;
+                        this.curLambdaRetSet = true;
+                    } else if (!this.Compat(rt, this.curLambdaRet)) {
+                        this.AddErr("return tipo '" + rt + "', lambda retorna '" + this.curLambdaRet + "'");
+                    }
+                } else {
+                    if (!this.curLambdaRetSet) {
+                        this.curLambdaRet = "void";
+                        this.curLambdaRetSet = true;
+                    } else if (this.curLambdaRet != "void") {
+                        this.AddErr("return sem valor em lambda que retorna '" + this.curLambdaRet + "'");
+                    }
+                }
+            } else if (retTy == "void") {
+                if (s.expr != null) this.AddErr("return com valor em funcao void");
+            } else {
+                if (s.expr == null) {
+                    this.AddErr("return sem valor em funcao '" + retTy + "'");
+                } else {
+                    string saveExpR = this.expTy;
+                    this.expTy = retTy;
+                    string rt = this.TypeOfExpr(s.expr);
+                    this.expTy = saveExpR;
+                    if (rt != "" && !this.Compat(rt, retTy)) {
+                        this.AddErr("return tipo '" + rt + "', funcao retorna '" + retTy + "'");
+                    }
+                }
+            }
+        } else if (s.kind == SK.TupleDestruct) {
+            string tupTy = "";
+            if (s.expr != null) tupTy = this.TypeOfExpr(s.expr);
+            string[8] elemTys;
+            int elemCount = 0;
+            if (starts_with(tupTy, "(") && ends_with(tupTy, ")")) {
+                string inner = sub_str(tupTy, 1, str_len(tupTy) - 2);
+                var ilen = str_len(inner);
+                int istart = 0;
+                for (int k = 0; k <= ilen; k++) {
+                    if (k == ilen || sub_str(inner, k, 1) == ",") {
+                        string p = this.TrimSpaces(sub_str(inner, istart, k - istart));
+                        if (elemCount < 8) {
+                            elemTys[elemCount] = p;
+                            elemCount = elemCount + 1;
+                        }
+                        istart = k + 1;
+                    }
+                }
+            }
+            var slen = str_len(s.text);
+            int start = 0;
+            int nidx = 0;
+            for (int k = 0; k <= slen; k++) {
+                if (k == slen || sub_str(s.text, k, 1) == ",") {
+                    string vname = this.TrimSpaces(sub_str(s.text, start, k - start));
+                    string vtype = "int";
+                    if (elemCount > nidx) {
+                        if (elemTys[nidx] != "") vtype = elemTys[nidx];
+                    }
+                    this.VarPut(vname, vtype);
+                    nidx = nidx + 1;
+                    start = k + 1;
+                }
+            }
+        } else if (s.kind == SK.ExprStmt) {
+            this.TypeOfExpr(s.expr);
+        } else if (s.kind == SK.Try) {
+            this.CheckStmt(s.body, retTy);
+            if (s.catchVar != "") {
+                this.VarPut(s.catchVar, s.catchType);
+                if (s.elseBody != null) this.CheckStmt(s.elseBody, retTy);
+            }
+        } else if (s.kind == SK.Throw) {
+            if (s.expr != null) {
+                this.TypeOfExpr(s.expr);
+            }
+        } else if (s.kind == SK.Block) {
+            Stmt it = s.body;
+            while (it != null) {
+                this.CheckStmt(it, retTy);
+                it = it.next;
+            }
+        } else if (s.kind == SK.Parallel) {
+            Stmt part = null;
+            bool wasBlock = false;
+            if (s.body != null) {
+                if (s.body.kind == SK.Block) { part = s.body.body; wasBlock = true; }
+                else part = s.body;
+            }
+            Stmt newHead = null;
+            while (part != null) {
+                Stmt nxt = part.next;
+                Node tn = new Node();
+                tn.kind = NK.Task;
+                if (part.kind == SK.Block) tn.lamBody = part;
+                else {
+                    Stmt one = new Stmt();
+                    one.kind = SK.Block;
+                    one.body = part;
+                    part.next = null;
+                    tn.lamBody = one;
+                }
+                this.CheckTask(tn);
+                Stmt es = new Stmt();
+                es.kind = SK.ExprStmt;
+                es.expr = tn;
+                es.next = null;
+                if (newHead == null) {
+                    newHead = es;
+                } else {
+                    Stmt tl = newHead;
+                    while (tl.next != null) tl = tl.next;
+                    tl.next = es;
+                }
+                part = nxt;
+            }
+            if (wasBlock) s.body.body = newHead;
+            else s.body = newHead;
+        }
+        return null;
+    }
+
+    string ArrDimAt(string t, int idx) {
+        int cur = 0;
+        int i = 0;
+        int n = str_len(t);
+        while (i < n) {
+            if (sub_str(t, i, 1) == "[") {
+                int j = i + 1;
+                string num = "";
+                while (j < n && sub_str(t, j, 1) != "]") {
+                    num = num + sub_str(t, j, 1);
+                    j = j + 1;
+                }
+                if (cur == idx) return num;
+                cur = cur + 1;
+                i = j;
+            }
+            i = i + 1;
+        }
+        return "";
+    }
+
+    int ArrDimCount(string t) {
+        int c = 0;
+        for (int i = 0; i < str_len(t); i++) {
+            if (sub_str(t, i, 1) == "[") c = c + 1;
+        }
+        return c;
+    }
+
+    string ArrBase(string t) {
+        var b = index_of(t, "[");
+        if ((int)b > 0) return sub_str(t, 0, (int)b);
+        return t;
+    }
+
+    string ArrInner(string t) {
+        var b = index_of(t, "[");
+        int bi = (int)b;
+        if (bi <= 0) return t;
+        int j = bi + 1;
+        while (j < str_len(t) && sub_str(t, j, 1) != "]") j = j + 1;
+        return sub_str(t, 0, bi) + sub_str(t, j + 1, str_len(t) - j - 1);
+    }
+
+    int SplitCount(string s, string sep) {
+        if (s == "") return 0;
+        int c = 1;
+        for (int i = 0; i < str_len(s); i++) {
+            if (sub_str(s, i, 1) == sep) c = c + 1;
+        }
+        return c;
+    }
+
+    string SplitAt(string s, string sep, int idx) {
+        int cur = 0;
+        int start = 0;
+        int n = str_len(s);
+        for (int i = 0; i <= n; i++) {
+            string ch = sep;
+            if (i < n) ch = sub_str(s, i, 1);
+            if (ch == sep) {
+                if (cur == idx) return sub_str(s, start, i - start);
+                cur = cur + 1;
+                start = i + 1;
+            }
+        }
+        return "";
+    }
+
+    void CheckArrCsv(string csv, string ty) {
+        if (csv == "@") {
+            this.AddErr("inicializador de array com expressao nao suportado");
+            return;
+        }
+        if (csv == "") return;
+        int dims = this.ArrDimCount(ty);
+        if (dims == 1) {
+            if (contains(csv, ",")) {
+                this.AddErr("inicializador aninhado em excesso");
+                return;
+            }
+            var wantV = parse_int(this.ArrDimAt(ty, 0));
+            int want = (int)wantV;
+            int got = this.SplitCount(csv, ";");
+            if (got != want) {
+                this.AddErr("inicializador de array espera " + want + " elemento(s), recebeu " + got);
+            }
+        } else if (dims == 2) {
+            var wantRV = parse_int(this.ArrDimAt(ty, 0));
+            int wantR = (int)wantRV;
+            var wantCV = parse_int(this.ArrDimAt(ty, 1));
+            int wantC = (int)wantCV;
+            int gotR = this.SplitCount(csv, ";");
+            if (gotR != wantR) {
+                this.AddErr("inicializador de array espera " + wantR + " linha(s), recebeu " + gotR);
+                return;
+            }
+            for (int r = 0; r < gotR; r++) {
+                string row = this.SplitAt(csv, ";", r);
+                int gotC = this.SplitCount(row, ",");
+                if (gotC != wantC) {
+                    this.AddErr("linha " + r + " do array espera " + wantC + " elemento(s), recebeu " + gotC);
+                }
+            }
+        } else if (dims == 3) {
+            var wantPV = parse_int(this.ArrDimAt(ty, 0));
+            int wantP = (int)wantPV;
+            var wantRV = parse_int(this.ArrDimAt(ty, 1));
+            int wantR = (int)wantRV;
+            var wantCV = parse_int(this.ArrDimAt(ty, 2));
+            int wantC = (int)wantCV;
+            int gotP = this.SplitCount(csv, ";");
+            if (gotP != wantP) {
+                this.AddErr("inicializador de array espera " + wantP + " plano(s), recebeu " + gotP);
+                return;
+            }
+            for (int q = 0; q < gotP; q++) {
+                string plane = this.SplitAt(csv, ";", q);
+                int gotE = this.SplitCount(plane, ",");
+                if (gotE != wantR * wantC) {
+                    this.AddErr("plano " + q + " do array espera " + (wantR * wantC) + " elemento(s), recebeu " + gotE);
+                }
+            }
+        }
+    }
+
+    bool IsTyParam(string t) {
+        if (t == "T" || t == "U" || t == "V" || t == "K" || t == "W") return true;
+        if (str_len(t) == 1) {
+            int code = ord(t);
+            if (code >= 65 && code <= 90) return true;
+        }
+        return false;
+    }
+
+    void CheckMatchPat(Node pat, string subjT) {
+        if (pat == null) return;
+        if (pat.kind == NK.MatchList) {
+            bool isList = starts_with(subjT, "list");
+            string elemTy = "int";
+            if (isList) {
+                if (starts_with(subjT, "list<")) elemTy = sub_str(subjT, 5, str_len(subjT) - 6);
+            } else if (subjT != "" && contains(subjT, "[")) {
+                var bb = index_of(subjT, "[");
+                elemTy = sub_str(subjT, 0, (int)bb);
+            } else {
+                this.AddErr("padrao de lista exige list ou array");
+                return;
+            }
+            int need = 0;
+            Node sp = pat.arg;
+            while (sp != null) { need = need + 1; sp = sp.next; }
+            if (pat.text != "") {
+                if (!isList) {
+                    this.AddErr("resto '..' so em list");
+                    return;
+                }
+                this.VarPut(pat.text, subjT);
+            } else if (!isList) {
+                int total = 1;
+                int nd = this.ArrDimCount(subjT);
+                for (int di = 0; di < nd; di++) {
+                    var dv = parse_int(this.ArrDimAt(subjT, di));
+                    total = total * (int)dv;
+                }
+                if (need != total) {
+                    this.AddErr("padrao de lista espera " + total + " elemento(s), recebeu " + need);
+                    return;
+                }
+            }
+            Node sq = pat.arg;
+            while (sq != null) {
+                this.CheckMatchPat(sq, elemTy);
+                sq = sq.next;
+            }
+            return;
+        }
+        if (pat.kind == NK.MatchStruct) {
+            Decl cd = this.FindClassDecl(pat.text);
+            if (cd == null) {
+                this.AddErr("'" + pat.text + "' nao e struct/classe conhecida");
+                return;
+            }
+            Node fp = pat.arg;
+            while (fp != null) {
+                if (this.FieldIdx(pat.text, fp.text) < 0) {
+                    this.AddErr("campo '" + fp.text + "' nao existe em '" + pat.text + "'");
+                } else {
+                    this.CheckMatchPat(fp.left, this.FieldType(pat.text, fp.text));
+                }
+                fp = fp.next;
+            }
+            return;
+        }
+        if (pat.kind == NK.MatchWild) return;
+        if (pat.kind == NK.Num) {
+            if (subjT == "string") this.AddErr("padrao numerico nao casa com string");
+            this.TypeOfExpr(pat);
+            return;
+        }
+        if (pat.kind == NK.Str) {
+            if (subjT != "" && subjT != "string") this.AddErr("padrao string nao casa com '" + subjT + "'");
+            return;
+        }
+        if (pat.kind == NK.MatchRange) {
+            if (subjT == "string") this.AddErr("faixa nao casa com string");
+            return;
+        }
+        if (pat.kind == NK.MatchBind) {
+            this.VarPut(pat.text, subjT);
+            return;
+        }
+        if (pat.kind == NK.MatchAt) {
+            this.VarPut(pat.text, subjT);
+            this.CheckMatchPat(pat.left, subjT);
+            return;
+        }
+        if (pat.kind == NK.MatchConst) {
+            string en = "";
+            string vn = pat.text;
+            var dot = index_of(pat.text, ".");
+            if ((int)dot > 0) {
+                en = sub_str(pat.text, 0, (int)dot);
+                vn = sub_str(pat.text, (int)dot + 1, str_len(pat.text) - (int)dot - 1);
+            } else {
+                if (vn == "Some" || vn == "None") {
+                    if (subjT != "" && !this.IsOptionTy(subjT)) this.AddErr("padrao '" + vn + "' exige Option");
+                    return;
+                }
+                if (vn == "Ok" || vn == "Err") {
+                    if (subjT != "" && !this.IsResultTy(subjT)) this.AddErr("padrao '" + vn + "' exige Result");
+                    return;
+                }
+                this.AddErr("padrao '" + vn + "' nao e variante (use Enum.Var)");
+                return;
+            }
+            if (!this.IsEnum(en)) {
+                this.AddErr("'" + en + "' nao e enum");
+                return;
+            }
+            if (this.EnumVal(en, vn) < 0) this.AddErr("variante ausente");
+            return;
+        }
+        if (pat.kind == NK.MatchVariant) {
+            string en = "";
+            string vn = pat.text;
+            var dot = index_of(pat.text, ".");
+            if ((int)dot > 0) {
+                en = sub_str(pat.text, 0, (int)dot);
+                vn = sub_str(pat.text, (int)dot + 1, str_len(pat.text) - (int)dot - 1);
+            } else {
+                en = this.EnumOfVariant(vn);
+                if (en == "" && (vn == "Some" || vn == "None" || vn == "Ok" || vn == "Err")) {
+                    string want2 = "";
+                    if (vn == "Some" && this.IsOptionTy(subjT)) want2 = this.OptElem(subjT);
+                    else if (vn == "None" && this.IsOptionTy(subjT)) want2 = "@none";
+                    else if (vn == "Ok" && this.IsResultTy(subjT)) want2 = this.ResT(subjT);
+                    else if (vn == "Err" && this.IsResultTy(subjT)) want2 = this.ResE(subjT);
+                    else {
+                        this.AddErr("padrao '" + vn + "' nao casa com '" + subjT + "'");
+                        return;
+                    }
+                    int got2 = 0;
+                    Node sp2 = pat.arg;
+                    while (sp2 != null) { got2 = got2 + 1; sp2 = sp2.next; }
+                    int need2 = (vn == "None") ? 0 : 1;
+                    if (got2 != need2) {
+                        this.AddErr("padrao '" + vn + "' espera " + need2 + " subpadrao(oes)");
+                        return;
+                    }
+                    if (need2 == 1) this.CheckMatchPat(pat.arg, want2);
+                    return;
+                }
+                if (en == "") {
+                    this.AddErr("variante '" + vn + "' nao encontrada");
+                    return;
+                }
+            }
+            if (this.EnumVal(en, vn) < 0) {
+                this.AddErr("variante ausente");
+                return;
+            }
+            int want = this.EnumPayloadCount(en, vn);
+            int got = 0;
+            Node sp = pat.arg;
+            while (sp != null) { got = got + 1; sp = sp.next; }
+            if (got != want) {
+                this.AddErr("padrao '" + vn + "' espera " + want + " subpadrao(oes), recebeu " + got);
+                return;
+            }
+            int ii = 0;
+            Node sq = pat.arg;
+            while (sq != null) {
+                this.CheckMatchPat(sq, this.EnumPayloadTy(en, vn, ii));
+                ii = ii + 1;
+                sq = sq.next;
+            }
+            return;
+        }
+        this.AddErr("padrao de match nao suportado");
+    }
+
+    void ReorderCtorArgs(Node n) {
+        if (n.arg == null || n.argNamesC == 0) return;
+        Decl cd = null;
+        Decl dd = this.progHead;
+        while (dd != null) {
+            if (dd.kind == PK.Fn && dd.owner == n.text && dd.name == n.text) { cd = dd; break; }
+            dd = dd.next;
+        }
+        if (cd == null || cd.params == null) return;
+        Node[8] args;
+        int cn = 0;
+        Node a = n.arg;
+        while (a != null && cn < 8) { args[cn] = a; cn = cn + 1; a = a.next; }
+        for (int q = 0; q < cn; q++) {
+            if (n.argNames[q] == "") return;
+        }
+        Node nh = null;
+        Node nt = null;
+        Pm pp = cd.params.next;
+        int pi = 0;
+        while (pp != null && pi < cn) {
+            int found = -1;
+            for (int q = 0; q < cn; q++) {
+                if (args[q] != null && n.argNames[q] == pp.name) { found = q; break; }
+            }
+            if (found < 0) return;
+            args[found].next = null;
+            if (nt == null) nh = args[found];
+            else nt.next = args[found];
+            nt = args[found];
+            args[found] = null;
+            pi = pi + 1;
+            pp = pp.next;
+        }
+        n.arg = nh;
+    }
+
+    string CtorWithExpected(string name, Node arg, string exp) {
+        bool isOpt = this.IsOptionTy(exp);
+        bool isRes = this.IsResultTy(exp);
+        if (!isOpt && !isRes) return "";
+        if (name == "Some" && isOpt) {
+            string want = this.OptElem(exp);
+            int got = 0;
+            Node c = arg;
+            while (c != null) { got = got + 1; c = c.next; }
+            if (got != 1) {
+                this.AddErr("'Some' espera 1 arg(s), recebeu " + got);
+                return exp;
+            }
+            string aty = this.TypeOfExpr(arg);
+            if (want != "" && aty != "" && !this.Compat(aty, want)) {
+                this.AddErr("payload de 'Some' eh '" + aty + "', esperado '" + want + "'");
+            }
+            return exp;
+        }
+        if (name == "None" && isOpt) {
+            int got = 0;
+            Node c = arg;
+            while (c != null) { got = got + 1; c = c.next; }
+            if (got != 0) this.AddErr("'None' nao recebe args");
+            return exp;
+        }
+        if (name == "Ok" && isRes) {
+            string want = this.ResT(exp);
+            int got = 0;
+            Node c = arg;
+            while (c != null) { got = got + 1; c = c.next; }
+            if (got == 0) {
+                if (want != "" && want != "void") this.AddErr("'Ok' sem payload exige Result<void, E>");
+                return exp;
+            }
+            if (got != 1) {
+                this.AddErr("'Ok' espera 1 arg(s), recebeu " + got);
+                return exp;
+            }
+            string aty = this.TypeOfExpr(arg);
+            if (want != "" && aty != "" && !this.Compat(aty, want)) {
+                this.AddErr("payload de 'Ok' eh '" + aty + "', esperado '" + want + "'");
+            }
+            return exp;
+        }
+        if (name == "Err" && isRes) {
+            string want = this.ResE(exp);
+            int got = 0;
+            Node c = arg;
+            while (c != null) { got = got + 1; c = c.next; }
+            if (got != 1) {
+                this.AddErr("'Err' espera 1 arg(s), recebeu " + got);
+                return exp;
+            }
+            string aty = this.TypeOfExpr(arg);
+            if (want != "" && aty != "" && !this.Compat(aty, want)) {
+                this.AddErr("payload de 'Err' eh '" + aty + "', esperado '" + want + "'");
+            }
+            return exp;
+        }
+        return "";
+    }
+
+    string CheckTask(Node n) {
+        Node prevTask = this.curTask;
+        int prevTaskBase = this.curTaskBase;
+        Node prevLam = this.curLambda;
+        int prevBase = this.curLambdaBase;
+        string prevTaskRet = this.curTaskRet;
+        bool prevTaskRetSet = this.curTaskRetSet;
+        this.curTask = n;
+        this.curTaskBase = this.vnN;
+        this.curLambda = null;
+        this.curTaskRet = "";
+        this.curTaskRetSet = false;
+        this.CheckStmt(n.lamBody, "");
+        string rty = this.curTaskRet;
+        if (rty == "") rty = "void";
+        this.vnN = this.curTaskBase;
+        this.curTask = prevTask;
+        this.curTaskBase = prevTaskBase;
+        this.curTaskRet = prevTaskRet;
+        this.curTaskRetSet = prevTaskRetSet;
+        this.curLambda = prevLam;
+        this.curLambdaBase = prevBase;
+        string taskTy = "task<" + rty + ">";
+        n.tyHint = taskTy;
+        return taskTy;
+    }
+
+    string CheckLambda(Node n) {
+        Node prevLam = this.curLambda;
+        int prevBase = this.curLambdaBase;
+        Node prevTask = this.curTask;
+        int prevTaskBase = this.curTaskBase;
+        this.curTask = null;
+        string prevLamRet = this.curLambdaRet;
+        bool prevLamRetSet = this.curLambdaRetSet;
+
+        this.curLambda = n;
+        this.curLambdaBase = this.vnN;
+        string saveExpL = this.expTy;
+        this.expTy = "";
+        this.curLambdaRet = "";
+        this.curLambdaRetSet = false;
+
+        Pm p = n.lamParams;
+        while (p != null) {
+            string pty = p.type;
+            if (pty == "" || pty == "var") {
+                pty = this.inferLambdaParamType(n.lamBody, p.name);
+                p.type = pty;
+            }
+            // Shadowing correto: param da lambda deve empilhar novo slot,
+            // nao sobrescrever outer (VarPut sobrescreve e corrompe o tipo
+            // do outer + gera captura fantasma quando nomes colidem,
+            // ex: string label outer vs (int label) param).
+            this.VarPush(p.name, pty);
+            p = p.next;
+        }
+
+        this.CheckStmt(n.lamBody, "");
+
+        string rty = this.curLambdaRet;
+        if (rty == "") rty = "void";
+
+        string fnTy = "func<" + rty;
+        p = n.lamParams;
+        while (p != null) {
+            fnTy = fnTy + ", " + p.type;
+            p = p.next;
+        }
+        fnTy = fnTy + ">";
+
+        this.vnN = this.curLambdaBase;
+        this.expTy = saveExpL;
+        this.curTask = prevTask;
+        this.curTaskBase = prevTaskBase;
+        this.curLambda = prevLam;
+        this.curLambdaBase = prevBase;
+        this.curLambdaRet = prevLamRet;
+        this.curLambdaRetSet = prevLamRetSet;
+
+        n.tyHint = fnTy;
+        return fnTy;
+    }
+
+    string inferLambdaParamType(Stmt body, string pName) {
+        if (this.stmtHasFloatOrDiv(body, pName)) return "float";
+        if (this.stmtHasString(body, pName)) return "string";
+        return "int";
+    }
+
+    bool stmtHasFloatOrDiv(Stmt s, string pName) {
+        if (s == null) return false;
+        if (s.expr != null && this.exprHasFloatOrDiv(s.expr, pName)) return true;
+        if (s.body != null && this.stmtHasFloatOrDiv(s.body, pName)) return true;
+        if (s.elseBody != null && this.stmtHasFloatOrDiv(s.elseBody, pName)) return true;
+        if (s.next != null && this.stmtHasFloatOrDiv(s.next, pName)) return true;
+        return false;
+    }
+
+    bool exprHasFloatOrDiv(Node n, string pName) {
+        if (n == null) return false;
+        if (n.kind == NK.Bin) {
+            if (this.exprReferences(n.left, pName) || this.exprReferences(n.right, pName)) {
+                if (n.op == "/" && (n.right != null && n.right.kind == NK.Num && contains(n.right.text, "."))) return true;
+                if (n.left != null && n.left.kind == NK.Num && contains(n.left.text, ".")) return true;
+                if (n.right != null && n.right.kind == NK.Num && contains(n.right.text, ".")) return true;
+            }
+        }
+        if (this.exprHasFloatOrDiv(n.left, pName)) return true;
+        if (this.exprHasFloatOrDiv(n.right, pName)) return true;
+        if (this.exprHasFloatOrDiv(n.arg, pName)) return true;
+        if (this.exprHasFloatOrDiv(n.next, pName)) return true;
+        return false;
+    }
+
+    bool exprReferences(Node n, string pName) {
+        if (n == null) return false;
+        if (n.kind == NK.Var && n.text == pName) return true;
+        if (this.exprReferences(n.left, pName)) return true;
+        if (this.exprReferences(n.right, pName)) return true;
+        return false;
+    }
+
+    bool stmtHasString(Stmt s, string pName) {
+        if (s == null) return false;
+        if (s.expr != null && this.exprHasString(s.expr, pName)) return true;
+        if (s.body != null && this.stmtHasString(s.body, pName)) return true;
+        if (s.elseBody != null && this.stmtHasString(s.elseBody, pName)) return true;
+        if (s.next != null && this.stmtHasString(s.next, pName)) return true;
+        return false;
+    }
+
+    bool exprHasString(Node n, string pName) {
+        if (n == null) return false;
+        if (n.kind == NK.Bin && n.op == "+") {
+            if (this.exprReferences(n.left, pName) || this.exprReferences(n.right, pName)) {
+                if (n.left != null && n.left.kind == NK.Str) return true;
+                if (n.right != null && n.right.kind == NK.Str) return true;
+            }
+        }
+        if (this.exprHasString(n.left, pName)) return true;
+        if (this.exprHasString(n.right, pName)) return true;
+        if (this.exprHasString(n.arg, pName)) return true;
+        if (this.exprHasString(n.next, pName)) return true;
+        return false;
+    }
+
+
+    string TypeOfExpr(Node n) {
+        string t0 = this.TypeOfExprCore(n);
+        n.tyHint = t0;
+        return t0;
+    }
+
+    string TypeOfExprCore(Node n) {
+        if (n.kind == NK.Lambda) {
+            return this.CheckLambda(n);
+        }
+        if (n.kind == NK.Task) {
+            return this.CheckTask(n);
+        }
+        if (n.kind == NK.Await) {
+            string ot = this.TypeOfExpr(n.left);
+            if (ot == "task" || starts_with(ot, "task<")) {
+                string e = this.OptElem(ot);
+                if (e == "") e = "int";
+                n.tyHint = e;
+                return e;
+            }
+            n.tyHint = ot;
+            return ot;
+        }
+        if (n.kind == NK.Member && n.left.kind == NK.Var &&
+            this.IsEnum(n.left.text)) {
+            int v = this.EnumVal(n.left.text, n.text);
+            if (v < 0) this.AddErr("variante ausente");
+            return n.left.text;
+        }
+        if (n.kind == NK.Member) {
+            if (n.left.kind == NK.Var && n.left.text == "Task" && n.text == "IsCancelled") {
+                n.tyHint = "int";
+                return "int";
+            }
+            string bt = this.TypeOfExpr(n.left);
+            if ((contains(bt, "[") || starts_with(bt, "list") || starts_with(bt, "map")) && (n.text == "Length" || n.text == "length" || n.text == "Len")) {
+                return "int";
+            }
+            if (starts_with(bt, "Result<") || starts_with(bt, "result<")) {
+                if (n.text == "IsOk") {
+                    n.tyHint = "bool";
+                    return "bool";
+                }
+                if (n.text == "IsError" || n.text == "IsErr") {
+                    n.tyHint = "bool";
+                    return "bool";
+                }
+                if (n.text == "Value") {
+                    string r = this.ResT(bt);
+                    n.tyHint = r;
+                    return r;
+                }
+                if (n.text == "Error") {
+                    string r = this.ResE(bt);
+                    n.tyHint = r;
+                    return r;
+                }
+                this.AddErr("results possuem apenas 'IsOk', 'IsError', 'IsErr', 'Value' e 'Error'");
+                return "";
+            }
+            // Option<T>: IsSome/HasValue/IsNone -> bool, Value -> T
+            if (starts_with(bt, "Option<") || starts_with(bt, "option<")) {
+                if (n.text == "IsSome" || n.text == "HasValue" || n.text == "IsNone" ||
+                    n.text == "is_some" || n.text == "is_none") {
+                    n.tyHint = "bool";
+                    return "bool";
+                }
+                if (n.text == "Value") {
+                    var lt6 = index_of(bt, "<");
+                    string elem = sub_str(bt, lt6 + 1, str_len(bt) - lt6 - 2);
+                    n.tyHint = elem;
+                    return elem;
+                }
+                this.AddErr("options possuem apenas 'IsSome', 'IsNone', 'HasValue' e 'Value'");
+                return "";
+            }
+            if (bt != "" && n.left.kind == NK.Var && n.left.tyHint == "") {
+                n.left.tyHint = bt;
+            }
+            if ((bt == "" || this.FieldIdx(bt, n.text) < 0) && bt != "" && this.HasGetter(bt, n.text)) {
+                Node rc = n.left;
+                n.kind = NK.Call;
+                n.text = "get_" + n.text;
+                n.recv = rc;
+                n.left = null;
+                return this.TypeOfExpr(n);
+            }
+            if (bt == "" || this.FieldIdx(bt, n.text) < 0) {
+                if (!this.IsEnum(n.left.text)) {
+                    this.AddErr("campo '" + n.text + "' nao existe em '" + bt + "'");
+                }
+                return "";
+            }
+            string ft = this.FieldType(bt, n.text);
+            // M23.1 2.3: se ft Ã© "T" e bt Ã© uma instÃ¢ncia monomorfizada,
+            // infere o tipo real do sufixo (ex: "C__int" â†’ "int")
+            if (ft == "T") {
+                var u3 = index_of(bt, "__");
+                if (u3 > 0) {
+                    string sub = sub_str(bt, u3 + 2, str_len(bt) - u3 - 2);
+                    if (str_len(sub) > 0) ft = sub;
+                }
+                if (ft == "T" || str_len(ft) == 0) ft = "int";
+            }
+            return ft;
+        }
+        if (n.kind == NK.New) {
+            if (n.text == "list") {
+                string elem = "int";
+                if (n.genArgsC > 0) elem = n.genArgs[0];
+                if (n.arg != null) {
+                    string capTy = this.TypeOfExpr(n.arg);
+                    if (capTy != "" && !this.IsNumTy(capTy)) {
+                        this.AddErr("capacidade de 'list' exige numerico");
+                    }
+                    if (n.arg.next != null) this.AddErr("'list' aceita no maximo 1 arg(s)");
+                }
+                string lrty = "list<" + elem + ">";
+                n.tyHint = lrty;
+                return lrty;
+            }
+            if (n.text == "mutex" || n.text == "event") {
+                n.tyHint = n.text;
+                return n.text;
+            }
+            if (n.text == "semaphore" || n.text == "barrier") {
+                if (n.arg != null) {
+                    string capTy = this.TypeOfExpr(n.arg);
+                    if (capTy != "" && !this.IsNumTy(capTy)) {
+                        this.AddErr("capacidade exige numerico");
+                    }
+                }
+                n.tyHint = n.text;
+                return n.text;
+            }
+            if (n.text == "channel") {
+                string elem = "int";
+                if (n.genArgsC > 0) elem = n.genArgs[0];
+                if (n.arg != null) {
+                    string capTy = this.TypeOfExpr(n.arg);
+                    if (capTy != "" && !this.IsNumTy(capTy)) {
+                        this.AddErr("capacidade de 'channel' exige numerico");
+                    }
+                    if (n.arg.next != null) this.AddErr("'channel' aceita no maximo 1 arg(s)");
+                }
+                string chrty = "channel<" + elem + ">";
+                n.tyHint = chrty;
+                return chrty;
+            }
+            if (n.text == "map") {
+                string k = "string";
+                string v = "int";
+                if (n.genArgsC > 0) k = n.genArgs[0];
+                if (n.genArgsC > 1) v = n.genArgs[1];
+                if (n.arg != null) this.TypeOfExpr(n.arg);
+                string mrty = "map<" + k + ", " + v + ">";
+                n.tyHint = mrty;
+                return mrty;
+            }
+            if (this.ClsGet(n.text) == "" && !this.IsTyParam(n.text)) {
+                this.AddErr("classe '" + n.text + "' nao definida");
+                return "";
+            }
+            // M23.1 2.3: anota tyHint com o nome mangled para monomorfizaÃ§Ã£o.
+            // O CG usa tyHint para FldOff (campos) e method dispatch (call).
+            string resolvedName = n.text;
+            if (n.genArgsC > 0 && !this.IsBuiltinGenericTy(n.text)) {
+                Decl cd = this.FindClassDecl(n.text);
+                if (cd != null) {
+                    if (cd.genArgsC <= 0) {
+                        this.AddErr("tipo '" + n.text + "' nao generico");
+                        return n.text;
+                    }
+                    if (cd.genArgsC != n.genArgsC) {
+                        this.AddErr("tipo '" + n.text + "' espera " + cd.genArgsC +
+                                 " arg(s) generico(s), recebeu " + n.genArgsC);
+                        return n.text;
+                    }
+                    if (cd.whereParam != "" && cd.whereCons != "" && cd.genArgsC == 1) {
+                        if (!this.CheckWhereBound(cd.whereParam, n.genArgs[0], cd)) return n.text;
+                    }
+                }
+                string csv = "";
+                int gi = 0;
+                while (gi < n.genArgsC) {
+                    if (gi > 0) csv = csv + "_";
+                    csv = csv + n.genArgs[gi];
+                    gi = gi + 1;
+                }
+                resolvedName = this.Mangle(n.text, csv);
+                n.tyHint = resolvedName;
+                // M23.1 2.3: registra a instÃ¢ncia com os mesmos campos da base
+                string baseBody = this.ClsGet(n.text);
+                if (baseBody != "" && this.ClsGet(resolvedName) == "") {
+                    this.ClsPut(resolvedName, baseBody);
+                }
+            } else {
+                n.tyHint = n.text;
+            }
+            if (n.arg != null) {
+                this.ReorderCtorArgs(n);
+                int g2 = 0;
+                Node aa2 = n.arg;
+                while (aa2 != null) { this.TypeOfExpr(aa2); g2 = g2 + 1; aa2 = aa2.next; }
+                string csig = this.FnGetArity(n.text + "." + n.text, g2 + 1);
+                if (csig == "") {
+                    this.AddErr("classe sem construtor");
+                } else {
+                    var h2 = index_of(csig, "#");
+                    var w2 = parse_int(sub_str(csig, h2 + 1, str_len(csig) - h2 - 1));
+                    if (g2 != w2 - 1) this.AddErr("ctor arity");
+                }
+            }
+            return resolvedName;
+        }
+        if (n.kind == NK.ArrayInit && n.text == "tuple") {
+            string tty = "(";
+            Node it = n.arg;
+            bool fst = true;
+            while (it != null) {
+                if (!fst) tty = tty + ", ";
+                string et = this.TypeOfExpr(it);
+                tty = tty + et;
+                fst = false;
+                it = it.next;
+            }
+            tty = tty + ")";
+            n.tyHint = tty;
+            return tty;
+        }
+        if (n.kind == NK.Num) {
+            if (n.tyHint == "null") return "null";
+            if (n.tyHint == "bool") return "bool";
+            if (contains(n.text, ".")) return "float";
+            return "int";
+        }
+        if (n.kind == NK.Str) return "string";
+        if (n.kind == NK.Var) {
+            string t = this.LookupVar(n.text);
+            if (t == "" && this.curOwner != "" && this.HasGetter(this.curOwner, n.text)) {
+                Node th = mkVar("this");
+                n.kind = NK.Call;
+                n.text = "get_" + n.text;
+                n.recv = th;
+                n.left = null;
+                return this.TypeOfExpr(n);
+            }
+            if (t == "" && (n.text == "None" || n.text == "Ok" || n.text == "Err")) {
+                n.tyHint = n.text;
+                return n.text;
+            }
+            if (t == "") this.AddErr("variavel '" + n.text + "' nao declarada");
+            return t;
+        }
+        if (n.kind == NK.TryPost) {
+            string ot = this.TypeOfExpr(n.left);
+            if (this.IsOptionTy(ot)) {
+                string e = this.OptElem(ot);
+                n.tyHint = e;
+                return e;
+            }
+            if (this.IsResultTy(ot)) {
+                string e = this.ResT(ot);
+                if (e == "" || e == "void") {
+                    n.tyHint = "void";
+                    return "void";
+                }
+                n.tyHint = e;
+                return e;
+            }
+            this.AddErr("'?' so se aplica a Option ou Result");
+            return "";
+        }
+        if (n.kind == NK.Cast) {
+            this.TypeOfExpr(n.left);
+            return n.text;
+        }
+        if (n.kind == NK.Un) {
+            string t = this.TypeOfExpr(n.left);
+            if (n.op == "!") {
+                if (t != "bool" && t != "") this.AddErr("'!' exige bool");
+                return "bool";
+            }
+            if (!this.IsNumTy(t) && t != "") this.AddErr("unario '-' exige numerico");
+            return t;
+        }
+        if (n.kind == NK.Index && n.left.kind == NK.Index) {
+            if (n.left.left.kind == NK.Index && n.left.left.left.kind == NK.Var) {
+                string bty = this.TypeOfExpr(n.left.left.left);
+                if (this.ArrDimCount(bty) == 3) {
+                    string e1 = this.ArrDimAt(bty, 1);
+                    string e2 = this.ArrDimAt(bty, 2);
+                    Node i0 = n.left.left.right;
+                    Node j0 = n.left.right;
+                    Node k0 = n.right;
+                    Node w1 = mkNum(e1);
+                    Node w2 = mkNum(e2);
+                    Node m1 = mkBin("*", i0, w1);
+                    Node a1 = mkBin("+", m1, j0);
+                    Node m2 = mkBin("*", a1, w2);
+                    Node lin = mkBin("+", m2, k0);
+                    n.left = n.left.left.left;
+                    n.right = lin;
+                    return this.TypeOfExpr(n);
+                }
+            }
+            string bbt = this.TypeOfExpr(n.left.left);
+            if (this.ArrDimCount(bbt) == 2) {
+                string d1 = this.ArrDimAt(bbt, 1);
+                Node dw = mkNum(d1);
+                Node mul = mkBin("*", n.left.right, dw);
+                Node add = mkBin("+", mul, n.right);
+                n.left = n.left.left;
+                n.right = add;
+                return this.TypeOfExpr(n);
+            }
+        }
+        if (n.kind == NK.Match) {
+            string subjT = this.TypeOfExpr(n.left);
+            bool subjOk = subjT == "int" || subjT == "uint" || subjT == "bool" ||
+                          subjT == "char" || subjT == "string" || subjT == "" ||
+                          this.IsEnum(subjT) || this.IsOptionTy(subjT) || this.IsResultTy(subjT) ||
+                          starts_with(subjT, "list") || contains(subjT, "[") ||
+                          this.ClsGet(this.BaseOfTy(subjT)) != "";
+            if (!subjOk) {
+                this.AddErr("match sobre '" + subjT + "' nao suportado");
+                n.tyHint = "";
+                return "";
+            }
+            string resTy = "";
+            Node a = n.arg;
+            while (a != null) {
+                this.CheckMatchPat(a.left, subjT);
+                if (a.right != null) {
+                    string gt = this.TypeOfExpr(a.right);
+                    if (gt != "" && gt != "bool") this.AddErr("guarda do match exige bool");
+                }
+                if (a.arg != null) {
+                    string saveExpM = this.expTy;
+                    string yt = this.TypeOfExpr(a.arg);
+                    this.expTy = saveExpM;
+                    if (resTy == "") resTy = yt;
+                } else if (a.lamBody != null) {
+                    this.CheckStmt(a.lamBody, "");
+                }
+                a = a.next;
+            }
+            n.tyHint = resTy;
+            return resTy;
+        }
+        if (n.kind == NK.OptIndex) {
+            string bt = this.TypeOfExpr(n.left);
+            string it = this.TypeOfExpr(n.right);
+            if (it != "" && !this.IsNumTy(it)) {
+                this.AddErr("indice de '?[' exige numerico");
+            }
+            string elemTy = "";
+            if (bt == "string") {
+                elemTy = "char";
+            } else if (bt == "list" || starts_with(bt, "list<")) {
+                elemTy = "int";
+                if (starts_with(bt, "list<")) {
+                    elemTy = sub_str(bt, 5, str_len(bt) - 6);
+                }
+            } else if (bt != "" && contains(bt, "[")) {
+                var brk = index_of(bt, "[");
+                if (brk > 0) elemTy = sub_str(bt, 0, brk);
+                else elemTy = sub_str(bt, 0, str_len(bt) - 2);
+            } else {
+                this.AddErr("'?[' exige array, list ou string");
+                return "";
+            }
+            if (bt != "" && n.left.kind == NK.Var && n.left.tyHint == "") {
+                n.left.tyHint = bt;
+            }
+            // classe/string: resultado nulavel direto; valor: Option<T>
+            if (elemTy == "string" || this.ClsGet(elemTy) != "") {
+                n.tyHint = elemTy;
+                return elemTy;
+            }
+            string opt = "Option<" + elemTy + ">";
+            n.tyHint = opt;
+            return opt;
+        }
+        if (n.kind == NK.Index) {
+            string bt = this.TypeOfExpr(n.left);
+            if (bt == "string") {
+                string it = this.TypeOfExpr(n.right);
+                if (it != "" && !this.IsNumTy(it)) {
+                    this.AddErr("indice de string exige numerico");
+                }
+                n.tyHint = "char";
+                return "char";
+            }
+            if (bt == "list" || starts_with(bt, "list<")) {
+                string it = this.TypeOfExpr(n.right);
+                if (it != "" && !this.IsNumTy(it)) {
+                    this.AddErr("indice de list exige numerico");
+                }
+                string elemTy = "int";
+                if (starts_with(bt, "list<")) {
+                    elemTy = sub_str(bt, 5, str_len(bt) - 6);
+                }
+                n.left.tyHint = bt;
+                n.tyHint = elemTy;
+                return elemTy;
+            }
+            if (bt == "" || !contains(bt, "[")) {
+                this.AddErr("indexacao exige array");
+                return "";
+            }
+            string it = this.TypeOfExpr(n.right);
+            if (it != "" && !this.IsNumTy(it)) {
+                this.AddErr("indice de array exige numerico");
+            }
+            var brk = index_of(bt, "[");
+            string retE = "";
+            if (brk > 0) retE = sub_str(bt, 0, brk);
+            else retE = sub_str(bt, 0, str_len(bt) - 2);
+            n.tyHint = retE;
+            return retE;
+        }
+        if (n.kind == NK.Call && n.recv != null) {
+            string en = "";
+            string evn = "";
+            if (n.recv.kind == NK.Member && n.recv.left != null && n.recv.left.kind == NK.Var) {
+                en = n.recv.left.text;
+                evn = n.recv.text;
+            } else if (n.recv.kind == NK.Var) {
+                en = n.recv.text;
+                evn = n.text;
+            }
+            if (en != "" && this.IsEnum(en) && evn == "FromInt") {
+                int fc = 0;
+                Node fa = n.arg;
+                while (fa != null) { fc = fc + 1; fa = fa.next; }
+                if (fc != 1) {
+                    this.AddErr("'FromInt' espera 1 arg(s), recebeu " + fc);
+                    n.tyHint = "Option<" + en + ">";
+                    return "Option<" + en + ">";
+                }
+                string fty = this.TypeOfExpr(n.arg);
+                if (fty != "" && !this.IsNumTy(fty)) {
+                    this.AddErr("'FromInt' exige arg numerico");
+                }
+                n.tyHint = "Option<" + en + ">";
+                return "Option<" + en + ">";
+            }
+            if (en != "" && this.IsEnum(en) && this.IsRichEnum(en)) {
+                int tag = this.EnumVal(en, evn);
+                if (tag < 0) {
+                    this.AddErr("variante ausente");
+                    n.tyHint = en;
+                    return en;
+                }
+                int want = this.EnumPayloadCount(en, evn);
+                int got = 0;
+                Node ca = n.arg;
+                while (ca != null) { got = got + 1; ca = ca.next; }
+                if (got != want) {
+                    this.AddErr("variante '" + evn + "' espera " + want + " arg(s), recebeu " + got);
+                    n.tyHint = en;
+                    return en;
+                }
+                Node ca2 = n.arg;
+                int ii = 0;
+                while (ca2 != null) {
+                    string aty = this.TypeOfExpr(ca2);
+                    string pty = this.EnumPayloadTy(en, evn, ii);
+                    if (pty != "" && aty != "" && !this.Compat(aty, pty)) {
+                        this.AddErr("arg de '" + evn + "' eh '" + aty + "', esperado '" + pty + "'");
+                    }
+                    ii = ii + 1;
+                    ca2 = ca2.next;
+                }
+                n.tyHint = en;
+                return en;
+            }
+            Node rr = n.recv;
+            while (rr.kind == NK.Member && rr.left != null) rr = rr.left;
+            if (rr.kind == NK.Var && this.IsModuleRoot(rr.text)) {
+                int argc = 0;
+                Node ca = n.arg;
+                while (ca != null) { argc = argc + 1; ca = ca.next; }
+                if (this.FnGetArity(n.text, argc) != "") {
+                    n.recv = null;
+                    return this.TypeOfExpr(n);
+                }
+            }
+            string rt = this.TypeOfExpr(n.recv);
+            if ((rt == "channel" || starts_with(rt, "channel<")) && (n.text == "Send" || n.text == "Receive")) {
+                string elTy = "int";
+                if (starts_with(rt, "channel<")) elTy = sub_str(rt, 8, str_len(rt) - 9);
+                if (n.text == "Send") {
+                    if (n.arg != null) {
+                        string saveExpS = this.expTy;
+                        this.expTy = elTy;
+                        this.TypeOfExpr(n.arg);
+                        this.expTy = saveExpS;
+                        if (n.arg.next != null) this.AddErr("'Send' espera 1 arg(s)");
+                    }
+                    n.recv.tyHint = rt;
+                    n.tyHint = "void";
+                    return "void";
+                }
+                n.recv.tyHint = rt;
+                n.tyHint = elTy;
+                return elTy;
+            }
+            if ((this.IsOptionTy(rt) || this.IsResultTy(rt)) &&
+                (n.text == "is_some" || n.text == "is_none" || n.text == "unwrap" ||
+                 n.text == "unwrap_err" || n.text == "unwrap_or" || n.text == "is_ok" || n.text == "is_err")) {
+                int mg = 0;
+                Node ma = n.arg;
+                while (ma != null) { mg = mg + 1; ma = ma.next; }
+                string mt = "";
+                if (n.text == "is_some" || n.text == "is_none" || n.text == "is_ok" || n.text == "is_err") {
+                    if (mg != 0) this.AddErr("'" + n.text + "' nao recebe args");
+                    mt = "bool";
+                } else if (n.text == "unwrap") {
+                    if (mg != 0) this.AddErr("'unwrap' nao recebe args");
+                    if (this.IsOptionTy(rt)) mt = this.OptElem(rt);
+                    else mt = this.ResT(rt);
+                } else if (n.text == "unwrap_err") {
+                    if (mg != 0) this.AddErr("'unwrap_err' nao recebe args");
+                    mt = this.ResE(rt);
+                } else if (n.text == "unwrap_or") {
+                    if (mg != 1) this.AddErr("'unwrap_or' espera 1 arg(s)");
+                    string dt = "";
+                    if (this.IsOptionTy(rt)) dt = this.OptElem(rt);
+                    else dt = this.ResT(rt);
+                    if (n.arg != null) {
+                        string aty = this.TypeOfExpr(n.arg);
+                        if (aty != "" && dt != "" && !this.Compat(aty, dt)) {
+                            this.AddErr("'unwrap_or' espera '" + dt + "'");
+                        }
+                    }
+                    mt = dt;
+                }
+                n.recv.tyHint = rt;
+                n.tyHint = mt;
+                return mt;
+            }
+            Pm mpm = null;
+            Decl mdw = this.progHead;
+            while (mdw != null) {
+                if (mdw.kind == PK.Fn && mdw.owner != "" && mdw.name == n.text) {
+                    string ow = mdw.owner;
+                    if (rt == ow || this.BaseOfTy(rt) == ow) {
+                        mpm = mdw.params;
+                        if (mpm != null) mpm = mpm.next;
+                        break;
+                    }
+                }
+                mdw = mdw.next;
+            }
+            int got = 1; // this
+            Node a2 = n.arg;
+            string saveExpM = this.expTy;
+            Pm mpi = mpm;
+            while (a2 != null) {
+                if (mpi != null) this.expTy = mpi.type;
+                else this.expTy = "";
+                this.TypeOfExpr(a2);
+                got = got + 1;
+                a2 = a2.next;
+                if (mpi != null) mpi = mpi.next;
+            }
+            this.expTy = saveExpM;
+            if (this.IsEnum(rt) && !this.IsRichEnum(rt) && n.text == "Serialize") {
+                n.recv.tyHint = rt;
+                n.tyHint = "int";
+                return "int";
+            }
+            if ((rt == "task" || starts_with(rt, "task<")) && n.text == "Cancel") {
+                n.recv.tyHint = rt;
+                n.tyHint = "void";
+                return "void";
+            }
+            if ((rt == "task" || starts_with(rt, "task<")) && n.text == "Wait") {
+                if (got != 1) {
+                    this.AddErr("'Wait' nao recebe args");
+                    n.tyHint = "int";
+                    return "int";
+                }
+                string e = this.OptElem(rt);
+                if (e == "") e = "int";
+                n.recv.tyHint = rt;
+                n.tyHint = e;
+                return e;
+            }
+            if (this.IsAsyncMethod(rt, n.text)) {
+                string asig = this.FnGetArity(rt + "." + n.text, got);
+                if (asig == "") {
+                    string brt = this.BaseOfTy(rt);
+                    if (brt != rt) asig = this.FnGetArity(brt + "." + n.text, got);
+                }
+                string aret = "int";
+                if (asig != "") {
+                    var ah = index_of(asig, "#");
+                    aret = sub_str(asig, 0, ah);
+                }
+                string att = "task<" + aret + ">";
+                n.recv.tyHint = rt;
+                n.tyHint = att;
+                return att;
+            }
+            string methOwner = rt;
+            string sig = this.FnGetArity(rt + "." + n.text, got);
+            if (sig == "") {
+                string bareRt = this.BaseOfTy(rt);
+                if (bareRt != rt) {
+                    sig = this.FnGetArity(bareRt + "." + n.text, got);
+                    if (sig != "") methOwner = bareRt;
+                }
+            }
+            // M23.1 2.3: se rt é uma instância monomorfizada (ex: "Caixa__int"),
+            // tenta também o método da classe base (ex: "Caixa.Metodo").
+            if (sig == "") {
+                var u = index_of(rt, "__");
+                if (u > 0) {
+                    string baseRt = sub_str(rt, 0, u);
+                    sig = this.FnGetArity(baseRt + "." + n.text, got);
+                    if (sig != "") methOwner = baseRt;
+                }
+            }
+            if (sig == "") {
+                string curRt = rt;
+                while (curRt != "") {
+                    string parentCls = this.ClsBase(curRt);
+                    if (parentCls != "") {
+                        sig = this.FnGetArity(parentCls + "." + n.text, got);
+                        if (sig != "") {
+                            methOwner = parentCls;
+                            break;
+                        }
+                        curRt = parentCls;
+                    } else {
+                        break;
+                    }
+                }
+            }
+            if (sig != "") {
+                n.recv.tyHint = methOwner;
+            }
+            if (sig == "") {
+                if (n.text == "Equals") return "bool";
+                if (n.text == "CompareTo") return "int";
+                if (n.text == "Clone") return rt;
+                if (n.text == "Hash" || n.text == "GetHashCode") return "int";
+                if (n.text == "Serialize") return "string";
+                if ((rt == "list" || starts_with(rt, "list<")) && n.text == "Add") {
+                    n.recv.tyHint = rt;
+                    n.tyHint = "void";
+                    return "void";
+                }
+                if ((rt == "map" || starts_with(rt, "map<")) && n.text == "Put") {
+                    n.recv.tyHint = rt;
+                    n.tyHint = "void";
+                    return "void";
+                }
+                if ((rt == "map" || starts_with(rt, "map<")) && n.text == "Get") {
+                    n.recv.tyHint = rt;
+                    string valTy = "int";
+                    if (starts_with(rt, "map<")) {
+                        var com = index_of(rt, ",");
+                        if (com > 0) {
+                            valTy = sub_str(rt, com + 1, str_len(rt) - com - 2);
+                            while (starts_with(valTy, " ")) valTy = sub_str(valTy, 1, str_len(valTy) - 1);
+                        }
+                    }
+                    n.tyHint = valTy;
+                    return valTy;
+                }
+                if ((rt == "map" || starts_with(rt, "map<")) && n.text == "Contains") {
+                    n.recv.tyHint = rt;
+                    n.tyHint = "bool";
+                    return "bool";
+                }
+                if ((rt == "map" || starts_with(rt, "map<")) && n.text == "Remove") {
+                    n.recv.tyHint = rt;
+                    n.tyHint = "bool";
+                    return "bool";
+                }
+                if ((rt == "map" || starts_with(rt, "map<")) && n.text == "Clear") {
+                    n.recv.tyHint = rt;
+                    n.tyHint = "void";
+                    return "void";
+                }
+                if (rt == "mutex" && (n.text == "Lock" || n.text == "Unlock")) {
+                    n.recv.tyHint = rt;
+                    n.tyHint = "void";
+                    return "void";
+                }
+                if (rt == "semaphore" && (n.text == "Wait" || n.text == "Signal")) {
+                    n.recv.tyHint = rt;
+                    n.tyHint = "void";
+                    return "void";
+                }
+                if (rt == "event" && (n.text == "Wait" || n.text == "Set")) {
+                    n.recv.tyHint = rt;
+                    n.tyHint = "void";
+                    return "void";
+                }
+                if (rt == "barrier" && n.text == "Wait") {
+                    n.recv.tyHint = rt;
+                    n.tyHint = "void";
+                    return "void";
+                }
+                if ((rt == "channel" || starts_with(rt, "channel<")) && n.text == "Send") {
+                    n.recv.tyHint = rt;
+                    n.tyHint = "void";
+                    return "void";
+                }
+                if ((rt == "channel" || starts_with(rt, "channel<")) && n.text == "Receive") {
+                    n.recv.tyHint = rt;
+                    string elTy = "int";
+                    if (starts_with(rt, "channel<")) {
+                        elTy = sub_str(rt, 8, str_len(rt) - 9);
+                    }
+                    n.tyHint = elTy;
+                    return elTy;
+                }
+                this.AddErr("metodo '" + rt + "." + n.text + "' nao definido");
+                return "";
+            }
+            var hash = index_of(sig, "#");
+            string retTy = sub_str(sig, 0, hash);
+            // M23.1 2.3: se rt é uma instância monomorfizada e o retType do
+            // método é "T" (typeParam), tenta inferir do tipo da instância.
+            // Ex: Caixa<int>.Get() -> retType "T" -> infere "int".
+            if (retTy == "T") {
+                var u2 = index_of(rt, "__");
+                // rt = "Caixa__int" -> suffix "int"
+                if (u2 > 0) retTy = sub_str(rt, u2 + 2, str_len(rt) - u2 - 2);
+                if (str_len(retTy) == 0) retTy = "int"; // fallback
+            }
+            var want = parse_int(sub_str(sig, hash + 1, str_len(sig) - hash - 1));
+            if (got != want) {
+                this.AddErr("metodo espera " + want + ", recebeu " + got);
+            }
+            return retTy;
+        }
+        if (n.kind == NK.Call) {
+            if (n.isIndirectCall || n.left != null || (n.recv == null && starts_with(this.LookupVar(n.text), "func"))) {
+                n.isIndirectCall = true;
+                string calleeTy = "";
+                if (n.left != null) {
+                    calleeTy = this.TypeOfExpr(n.left);
+                } else if (n.text != "") {
+                    calleeTy = this.LookupVar(n.text);
+                }
+                var comma = index_of(calleeTy, ",");
+                var gt = index_of(calleeTy, ">");
+                string retTy = "int";
+                if (starts_with(calleeTy, "func<")) {
+                    if (comma > 5 && (0 > gt || comma < gt)) {
+                        retTy = trim(sub_str(calleeTy, 5, comma - 5));
+                    } else if (gt > 5) {
+                        retTy = trim(sub_str(calleeTy, 5, gt - 5));
+                    }
+                }
+                Node aa = n.arg;
+                while (aa != null) {
+                    this.TypeOfExpr(aa);
+                    aa = aa.next;
+                }
+                n.tyHint = retTy;
+                return retTy;
+            }
+            if (n.text == "print" || n.text == "println") {
+                Node aa = n.arg;
+                while (aa != null) {
+                    this.TypeOfExpr(aa);
+                    aa = aa.next;
+                }
+                return "void";
+            }
+            if (n.text == "ord") {
+                int c = 0;
+                Node ao = n.arg;
+                while (ao != null) {
+                    this.TypeOfExpr(ao);
+                    c = c + 1;
+                    ao = ao.next;
+                }
+                if (c < 1 || c > 2) {
+                    this.AddErr("funcao 'ord' espera 1 ou 2 arg(s), recebeu " + c);
+                }
+                return "int";
+            }
+            if (n.text == "abs") {
+                string at = "";
+                if (n.arg != null) at = this.TypeOfExpr(n.arg);
+                if (at == "float" || at == "double" || contains(at, "float") || contains(at, "double")) return "float";
+                return "int";
+            }
+            if (n.text == "min" || n.text == "max") {
+                string t1 = "";
+                string t2 = "";
+                if (n.arg != null) {
+                    t1 = this.TypeOfExpr(n.arg);
+                    if (n.arg.next != null) t2 = this.TypeOfExpr(n.arg.next);
+                }
+                if (t1 == "float" || t2 == "float" || t1 == "double" || t2 == "double" ||
+                    contains(t1, "float") || contains(t2, "float")) return "float";
+                return "int";
+            }
+            if (n.text == "SizeOf" || n.text == "FieldCount" ||
+                n.text == "HasField" || n.text == "FieldOffset") {
+                if (n.arg == null || n.arg.kind != NK.Var) {
+                    this.AddErr("'" + n.text + "' espera o NOME do tipo (ex.: " + n.text + "(Player))");
+                    n.tyHint = "int";
+                    return "int";
+                }
+                string tname = n.arg.text;
+                string tbase = this.BaseOfTy(tname);
+                Decl cd = this.FindClassDecl(tbase);
+                if (cd == null) {
+                    this.AddErr("'" + tname + "' nao e classe/struct conhecida");
+                    n.tyHint = "int";
+                    return "int";
+                }
+                if (cd.genArgsC > 0) {
+                    this.AddErr("'" + tname + "' e generica (use instancia concreta)");
+                    n.tyHint = "int";
+                    return "int";
+                }
+                if (!this.IsReflected(tname) && !this.IsReflected(tbase)) {
+                    this.AddErr("'" + tname + "' nao esta refletido (use 'reflect " + tname + ";')");
+                    n.tyHint = "int";
+                    return "int";
+                }
+                if (n.text == "HasField" || n.text == "FieldOffset") {
+                    if (n.arg.next == null || n.arg.next.kind != NK.Str) {
+                        this.AddErr("'" + n.text + "' espera (tipo, nomeDoCampo)");
+                        n.tyHint = "int";
+                        return "int";
+                    }
+                    string fname = n.arg.next.text;
+                    if (str_len(fname) >= 2 && sub_str(fname, 0, 1) == "\"") fname = sub_str(fname, 1, str_len(fname) - 2);
+                    if (this.FieldIdx(tname, fname) < 0 && this.FieldIdx(tbase, fname) < 0) {
+                        if (n.text == "HasField") {
+                            n.tyHint = "int";
+                            return "int";
+                        }
+                        this.AddErr("campo '" + fname + "' nao existe em '" + tname + "'");
+                        n.tyHint = "int";
+                        return "int";
+                    }
+                }
+                n.tyHint = "int";
+                return "int";
+            }
+            if (this.ClsGet(n.text) != "") {
+                int cc0 = 0;
+                Node ca0 = n.arg;
+                while (ca0 != null) { cc0 = cc0 + 1; ca0 = ca0.next; }
+                string csig = this.FnGetArity(n.text + "." + n.text, cc0 + 1);
+                if (csig != "") {
+                    this.ReorderCtorArgs(n);
+                    int cc = 0;
+                    Node ca = n.arg;
+                    while (ca != null) { this.TypeOfExpr(ca); cc = cc + 1; ca = ca.next; }
+                    n.tyHint = n.text;
+                    return n.text;
+                }
+            }
+            if (n.text == "list" || starts_with(n.text, "list<")) {
+                if (n.arg != null) this.TypeOfExpr(n.arg);
+                string rty = n.text;
+                if (n.genArgsC > 0) {
+                    rty = "list<" + n.genArgs[0] + ">";
+                }
+                n.tyHint = rty;
+                return rty;
+            }
+            if (n.text == "Some" || n.text == "Ok" || n.text == "Err" || n.text == "None") {
+                string r = this.CtorWithExpected(n.text, n.arg, this.expTy);
+                if (r != "") {
+                    n.tyHint = r;
+                    return r;
+                }
+                if (n.text == "Some") {
+                    int sc = 0;
+                    Node sa = n.arg;
+                    while (sa != null) { sc = sc + 1; sa = sa.next; }
+                    if (sc != 1) {
+                        this.AddErr("'Some' espera 1 arg(s), recebeu " + sc);
+                        return "";
+                    }
+                    string aty = this.TypeOfExpr(n.arg);
+                    string rr = "Option<" + aty + ">";
+                    n.tyHint = rr;
+                    return rr;
+                }
+                if (n.text == "None") {
+                    n.tyHint = "None";
+                    return "None";
+                }
+                this.AddErr("'" + n.text + "' sem tipo esperado; declare o tipo (Option<T>/Result<T,E>)");
+                return "";
+            }
+            Pm cpm = null;
+            Decl ddw = this.progHead;
+            while (ddw != null) {
+                if (ddw.kind == PK.Fn && ddw.owner == "" && ddw.name == n.text) { cpm = ddw.params; break; }
+                ddw = ddw.next;
+            }
+            int got = 0;
+            Node a = n.arg;
+            string firstArgTy = "";
+            string saveExp = this.expTy;
+            Pm cpi = cpm;
+            while (a != null) {
+                if (cpi != null) this.expTy = cpi.type;
+                else this.expTy = "";
+                string aty = this.TypeOfExpr(a);
+                if (firstArgTy == "") firstArgTy = aty;
+                got = got + 1;
+                a = a.next;
+                if (cpi != null) cpi = cpi.next;
+            }
+            this.expTy = saveExp;
+            if (n.genArgsC > 0 && this.HasAnyFnDecl(n.text) && !this.HasFnGenericArity(n.text, n.genArgsC)) {
+                this.AddErr("funcao '" + n.text + "' com args genericos incompativeis");
+                return "";
+            }
+            string sig = this.FnGetArity(n.text, got);
+            if (sig == "") {
+                this.AddErr("funcao '" + n.text + "' nao definida");
+                return "";
+            }
+            var hash = index_of(sig, "#");
+            string wantStr = sub_str(sig, hash + 1, str_len(sig) - hash - 1);
+            var want = parse_int(wantStr);
+            if (got != want) {
+                this.AddErr("funcao '" + n.text + "' espera " + want +
+                         " arg(s), recebeu " + got);
+            }
+            Decl gfd = this.FindGenericFnDecl(n.text, n.genArgsC);
+            if (gfd != null) {
+                string bound = "";
+                if (n.genArgsC == 1 && gfd.genArgsC == 1) {
+                    bound = n.genArgs[0];
+                } else {
+                    Pm wpp = gfd.params;
+                    Node waa = n.arg;
+                    while (wpp != null && waa != null) {
+                        string aty = waa.tyHint;
+                        if (aty == "" && waa.kind == NK.Var) aty = this.LookupVar(waa.text);
+                        if (wpp.type == gfd.whereParam || wpp.type == "T") {
+                            bound = aty;
+                            break;
+                        }
+                        if (starts_with(wpp.type, "list<") || wpp.type == "list") {
+                            if (starts_with(aty, "list<")) {
+                                bound = sub_str(aty, 5, str_len(aty) - 6);
+                                break;
+                            }
+                        }
+                        wpp = wpp.next;
+                        waa = waa.next;
+                    }
+                    if (bound == "") bound = firstArgTy;
+                    n.genArgsC = 1;
+                    n.genArgs[0] = bound;
+                }
+                if (gfd.whereParam != "" && gfd.whereCons != "") {
+                    this.CheckWhereBound(gfd.whereParam, bound, gfd);
+                }
+                string retTy = gfd.retType;
+                if (this.IsTyParam(retTy)) retTy = bound;
+                n.tyHint = retTy;
+                return retTy;
+            }
+            string retTy = sub_str(sig, 0, hash);
+            if (this.IsTyParam(retTy)) {
+                if (firstArgTy != "") retTy = firstArgTy;
+                else if (n.genArgsC > 0) retTy = n.genArgs[0];
+            }
+            if (this.IsAsyncFn(n.text)) {
+                string tt = "task<" + retTy + ">";
+                n.tyHint = tt;
+                return tt;
+            }
+            n.tyHint = retTy;
+            return retTy;
+        }
+        string l = this.TypeOfExpr(n.left);
+        string r = this.TypeOfExpr(n.right);
+        string op = n.op;
+        if (op == "?") {
+            // convencao: left=cond, right=THEN, arg=ELSE
+            // M15-fix6: checa AMBOS os ramos (senao o ELSE nunca ÃƒÂ©
+            // anotado com tyHint e o CG nao sabe a classe do receptor)
+            string ta = this.TypeOfExpr(n.right);
+            string tb = this.TypeOfExpr(n.arg);
+            if (ta != "") return ta;
+            return tb;
+        }
+        if (op == "??") {
+            string ta = this.TypeOfExpr(n.left);
+            string tb = this.TypeOfExpr(n.right);
+            // Option<T> ?? rhs: desembrulha -> T
+            if (starts_with(ta, "Option<") || starts_with(ta, "option<")) {
+                var lt6 = index_of(ta, "<");
+                string elem = sub_str(ta, lt6 + 1, str_len(ta) - lt6 - 2);
+                return elem;
+            }
+            if (starts_with(ta, "Result<") || starts_with(ta, "result<")) {
+                return this.ResT(ta);
+            }
+            if (ta != "" && ta != "null") return ta;
+            return tb;
+        }
+        if (op == "&&" || op == "||") {
+            if ((l != "bool" && l != "") || (r != "bool" && r != "")) {
+                this.AddErr("'" + op + "' exige operandos bool (obteve '" + l +
+                         "' e '" + r + "')");
+            }
+            return "bool";
+        }
+        if (op == "==") return "bool";
+        if (op == "!=") return "bool";
+        if (op == "<" || op == ">" || op == "<=" || op == ">=") {
+            bool lok = (l == "" || this.IsNumTy(l) || l == r || this.IsEnum(l) || this.IsTyParam(l));
+            bool rok = (r == "" || this.IsNumTy(r) || l == r || this.IsEnum(r) || this.IsTyParam(r));
+            if (!lok || !rok) {
+                this.AddErr("'" + op + "' exige numericos (obteve '" + l + "' e '" + r + "')");
+            }
+            return "bool";
+        }
+        if (op == "+" && (l == "string" || r == "string")) return "string";
+        if (this.IsTyParam(l) || this.IsTyParam(r)) {
+            return l != "" ? l : r;
+        }
+        if (!this.IsNumTy(l) || !this.IsNumTy(r)) {
+            if (l != "" && r != "") {
+                this.AddErr("'" + op + "' exige numericos (obteve '" + l + "' e '" + r + "')");
+            }
+            return "";
+        }
+        return this.Wider(l, r);
+    }
+}

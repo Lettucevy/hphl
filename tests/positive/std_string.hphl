@@ -1,0 +1,17 @@
+// std_string.hphl — M12.2: consultas de string (builtins globais)
+void Main() {
+    string s = "  Olá, Mundo HP-HL!  ";
+    println(str_len(s));                 // 22 (bytes, com espaços)
+    println(trim(s) + "|");              // sem espaços nas pontas
+    string t = trim(s);
+    println(str_len(t));                 // 18
+    println(sub_str(t, 6, 5));           // Mundo
+    println(index_of(t, "Mundo"));       // 6
+    println(index_of(t, "xyz"));         // -1
+    println(contains(t, "HP"));          // true
+    println(starts_with(t, "Olá"));      // true
+    println(ends_with(t, "HL!"));        // true
+    println(up_case("abc"));             // ABC
+    println(down_case("ABC"));           // abc
+    println(trim("   x   ") + "|");      // x|
+}

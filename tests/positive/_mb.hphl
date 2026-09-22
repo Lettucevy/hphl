@@ -1,0 +1,13 @@
+const int W = 8;
+void Main() {
+    double dx = 3.0 / (W - 1);
+    double dy = 2.5 / 5;
+    for (int py = 0; py < 5; py++) {
+        double ci = -1.25 + py * dy;
+        for (int px = 0; px < W; px++) {
+            double cr = -2.0 + px * dx;
+            println(cr);
+            println(ci);
+        }
+    }
+}

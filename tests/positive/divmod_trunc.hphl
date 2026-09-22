@@ -1,0 +1,17 @@
+// divmod_trunc.hphl - divisao inteira trunca p/ zero (estilo C) em
+// qualquer divisor, incluindo potencias de 2 (semantica unica x64/LLVM).
+void t(int a, int b) {
+    print(toString(a / b));
+    print(" ");
+    println(toString(a - (a / b) * b));
+}
+
+void Main() {
+    t(-7, 2);
+    t(-7, 4);
+    t(-8, 4);
+    t(7, 2);
+    t(-7, 3);
+    t(-1, 2);
+    println("divmod-done");
+}

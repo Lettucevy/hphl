@@ -1,0 +1,15 @@
+struct E {
+  int c;
+  E(int c) { this.c = c; }
+}
+
+Result<void, E> R() {
+  return Ok;
+}
+
+void Main() {
+  match (R()) {
+    Ok(v) => print("ok\n"),
+    Err(e) => print("erro\n"),
+  }
+}

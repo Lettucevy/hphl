@@ -1,0 +1,363 @@
+/*
+   ============================================================================
+   HPHL - Programa de Console Interativo
+   Demonstracao de Terminal STDIN: Leitura de usuario, Menu, Jogo e Calculadora
+   ============================================================================
+*/
+
+void JogarAdivinhacao() {
+    println("");
+    println("========================================");
+    println("      MINI JOGO: ADIVINHE O NUMERO      ");
+    println("========================================");
+    println("Pensei em um numero entre 1 e 100.");
+    println("Tente adivinhar!");
+    println("");
+
+    int segredo = random_int(1, 100);
+    int tentativas = 0;
+    bool acertou = false;
+
+    while (!acertou) {
+        print("Digite seu palpite (ou 0 para desistir): ");
+        string entrada = read_line();
+        int palpite = parse_int(entrada);
+
+        if (palpite == 0) {
+            print("Voce desistiu! O numero era: ");
+            print(segredo);
+            println("");
+            return;
+        }
+
+        tentativas = tentativas + 1;
+
+        if (palpite == segredo) {
+            println("");
+            println("****************************************");
+            print("PARABENS! Voce acertou em ");
+            print(tentativas);
+            println(" tentativas!");
+            println("****************************************");
+            println("");
+            acertou = true;
+        } else if (palpite < segredo) {
+            println(">> DICA: O numero secreto e MAIOR!");
+        } else {
+            println(">> DICA: O numero secreto e MENOR!");
+        }
+    }
+}
+
+void ExecutarCalculadora(list<double> memoria, list<string> historico) {
+    bool calcAtiva = true;
+    while (calcAtiva) {
+        println("");
+        println("==================================================");
+        println("    CALCULADORA COM ALOCACAO DINAMICA DE MEMORIA  ");
+        println("==================================================");
+        print("Status da Memoria: ");
+        print(memoria.Length);
+        print(" variavel(is) alocada(s) | Historico: ");
+        print(historico.Length);
+        println(" calculo(s)");
+        println("--------------------------------------------------");
+        println("1. Operacao Simples (com suporte a variaveis M0, M1...)");
+        println("2. Operacao Dinamica em Lote (N operandos alocados)");
+        println("3. Alocar nova variavel na memoria");
+        println("4. Listar variaveis alocadas na memoria");
+        println("5. Ver historico de calculos");
+        println("6. Teste de Promocao de Memoria (politica 'promote')");
+        println("7. Voltar ao Menu Principal");
+        print("Escolha uma opcao (1-7): ");
+
+        string subOp = read_line();
+
+        if (subOp == "1") {
+            println("");
+            println("--- Operacao Simples ---");
+            println("(Dica: digite um numero ou o nome de uma variavel como M0, M1...)");
+            print("Primeiro valor: ");
+            string s1 = read_line();
+            double v1 = 0.0;
+            if ((starts_with(s1, "M") || starts_with(s1, "m")) && str_len(s1) > 1) {
+                int idx = parse_int(sub_str(s1, 1, str_len(s1) - 1));
+                if (idx >= 0 && idx < memoria.Length) {
+                    v1 = memoria[idx];
+                    print("-> Usando variavel M");
+                    print(idx);
+                    print(" = ");
+                    print(v1);
+                    println("");
+                } else {
+                    println("Variavel nao encontrada, usando 0.0");
+                }
+            } else {
+                v1 = parse_float(s1);
+            }
+
+            print("Operacao (+, -, *, /): ");
+            string op = read_line();
+
+            print("Segundo valor: ");
+            string s2 = read_line();
+            double v2 = 0.0;
+            if ((starts_with(s2, "M") || starts_with(s2, "m")) && str_len(s2) > 1) {
+                int idx2 = parse_int(sub_str(s2, 1, str_len(s2) - 1));
+                if (idx2 >= 0 && idx2 < memoria.Length) {
+                    v2 = memoria[idx2];
+                    print("-> Usando variavel M");
+                    print(idx2);
+                    print(" = ");
+                    print(v2);
+                    println("");
+                } else {
+                    println("Variavel nao encontrada, usando 0.0");
+                }
+            } else {
+                v2 = parse_float(s2);
+            }
+
+            double res = 0.0;
+            bool ok = true;
+            if (op == "+") {
+                res = v1 + v2;
+            } else if (op == "-") {
+                res = v1 - v2;
+            } else if (op == "*") {
+                res = v1 * v2;
+            } else if (op == "/") {
+                if (v2 == 0.0) {
+                    println("Erro: Divisao por zero!");
+                    ok = false;
+                } else {
+                    res = v1 / v2;
+                }
+            } else {
+                println("Operacao invalida!");
+                ok = false;
+            }
+
+            if (ok) {
+                print(">> Resultado: ");
+                print(v1);
+                print(" ");
+                print(op);
+                print(" ");
+                print(v2);
+                print(" = ");
+                print(res);
+                println("");
+
+                // Dynamically appends entry to calculation history
+                historico.Add("Calculo simples");
+
+                print("Deseja alocar memoria para salvar este resultado? (s/n): ");
+                string salvar = read_line();
+                if (salvar == "s" || salvar == "S") {
+                    memoria.Add(res);
+                    print(">> Memoria alocada dinamicamente! Variavel registrada como M");
+                    print(memoria.Length - 1);
+                    print(" = ");
+                    print(res);
+                    println("");
+                }
+            }
+        } else if (subOp == "2") {
+            println("");
+            println("--- Operacao em Lote (Alocacao Dinamica de N Variaveis) ---");
+            print("Quantos numeros deseja alocar dinamicamente na memoria? ");
+            string sqtd = read_line();
+            int qtd = parse_int(sqtd);
+
+            if (qtd <= 0) {
+                println("Quantidade deve ser maior que zero.");
+            } else {
+                list<double> lote = new list<double>();
+                println("Alocando espaco na memoria heap para os operandos...");
+
+                for (int i = 0; i < qtd; i = i + 1) {
+                    print("Digite o operando ");
+                    print(i + 1);
+                    print(": ");
+                    string sval = read_line();
+                    double num = parse_float(sval);
+                    lote.Add(num);
+                }
+
+                print("Memoria alocada com sucesso para ");
+                print(lote.Length);
+                println(" variaveis!");
+
+                println("Operacoes disponiveis para a lista:");
+                println("1. Somar todas as variaveis");
+                println("2. Multiplicar todas as variaveis");
+                println("3. Calcular media aritmetica");
+                print("Escolha (1-3): ");
+                string opLote = read_line();
+
+                if (opLote == "1") {
+                    double total = 0.0;
+                    for (int i = 0; i < lote.Length; i = i + 1) {
+                        total = total + lote[i];
+                    }
+                    print(">> Soma total de ");
+                    print(lote.Length);
+                    print(" variaveis = ");
+                    print(total);
+                    println("");
+                    historico.Add("Soma em lote");
+                    memoria.Add(total);
+                    print(">> Resultado armazenado no novo slot de memoria M");
+                    print(memoria.Length - 1);
+                    println("");
+                } else if (opLote == "2") {
+                    double prod = 1.0;
+                    for (int i = 0; i < lote.Length; i = i + 1) {
+                        prod = prod * lote[i];
+                    }
+                    print(">> Produto total = ");
+                    print(prod);
+                    println("");
+                    historico.Add("Produto em lote");
+                    memoria.Add(prod);
+                    print(">> Resultado armazenado no novo slot de memoria M");
+                    print(memoria.Length - 1);
+                    println("");
+                } else if (opLote == "3") {
+                    double soma = 0.0;
+                    for (int i = 0; i < lote.Length; i = i + 1) {
+                        soma = soma + lote[i];
+                    }
+                    double media = soma / qtd;
+                    print(">> Media aritmetica = ");
+                    print(media);
+                    println("");
+                    historico.Add("Media em lote");
+                    memoria.Add(media);
+                    print(">> Resultado armazenado no novo slot de memoria M");
+                    print(memoria.Length - 1);
+                    println("");
+                }
+            }
+        } else if (subOp == "3") {
+            println("");
+            print("Digite o valor para alocar em nova variavel de memoria: ");
+            string sVal = read_line();
+            double vNova = parse_float(sVal);
+            memoria.Add(vNova);
+            print(">> Nova variavel alocada com sucesso: M");
+            print(memoria.Length - 1);
+            print(" = ");
+            print(vNova);
+            println("");
+        } else if (subOp == "4") {
+            println("");
+            println("--- Variaveis Alocadas na Memoria ---");
+            if (memoria.Length == 0) {
+                println("Nenhuma variavel alocada na memoria ainda.");
+            } else {
+                for (int i = 0; i < memoria.Length; i = i + 1) {
+                    print("  [Slot M");
+                    print(i);
+                    print("] = ");
+                    print(memoria[i]);
+                    println("");
+                }
+            }
+        } else if (subOp == "5") {
+            println("");
+            println("--- Historico Dinamico de Operacoes ---");
+            if (historico.Length == 0) {
+                println("Nenhuma operacao realizada nesta sessao.");
+            } else {
+                for (int i = 0; i < historico.Length; i = i + 1) {
+                    print("  #");
+                    print(i + 1);
+                    print(": ");
+                    print(historico[i]);
+                    println("");
+                }
+            }
+        } else if (subOp == "6") {
+            println("");
+            println("--- Politica de Overflow 'promote' do HPHL ---");
+            println("Em HPHL, 'int<32, promote>' aloca automaticamente mais memoria");
+            println("(promovendo de 32 para 64 bits) caso a operacao exceda o limite!");
+            println("");
+            print("Digite o primeiro numero inteiro (ex: 100000): ");
+            string sp1 = read_line();
+            int<32, promote> p1 = parse_int(sp1);
+
+            print("Digite o segundo numero inteiro (ex: 100000): ");
+            string sp2 = read_line();
+            int<32, promote> p2 = parse_int(sp2);
+
+            // Demonstrates automatic 64-bit integer promotion policy
+            int<64> resPromote = p1 * p2;
+            int<32, wrap> w1 = parse_int(sp1);
+            int<32, wrap> w2 = parse_int(sp2);
+            int<32, wrap> resWrap = w1 * w2;
+
+            println("");
+            print(">> Resultado COM 'promote' (expandido dinamicamente para 64 bits): ");
+            print(resPromote);
+            println("");
+            print(">> Resultado SEM 'promote' (32 bits com overflow/truncamento wrap): ");
+            print(resWrap);
+            println("");
+
+            historico.Add("Promote 32b->64b");
+            memoria.Add((double)resPromote);
+            print(">> Resultado armazenado na memoria M");
+            print(memoria.Length - 1);
+            println("");
+        } else if (subOp == "7") {
+            calcAtiva = false;
+        } else {
+            println("Opcao invalida!");
+        }
+    }
+}
+
+void Main() {
+    println("==============================================");
+    println("        BEM-VINDO AO HPHL CONSOLE APP         ");
+    println("==============================================");
+
+    print("Por favor, digite seu nome: ");
+    string nome = read_line();
+
+    print("Ola, ");
+    print(nome);
+    println("! Vamos testar o terminal interativo da IDE!");
+
+    // Dynamic heap-allocated data structures
+    list<double> memoria = new list<double>();
+    list<string> historico = new list<string>();
+
+    bool executando = true;
+    while (executando) {
+        println("");
+        println("--- MENU PRINCIPAL ---");
+        println("1. Jogar Adivinhe o Numero");
+        println("2. Calculadora (com Memoria e Variaveis Dinamicas)");
+        println("3. Sair");
+        print("Escolha uma opcao (1-3): ");
+
+        string opcao = read_line();
+        if (opcao == "1") {
+            JogarAdivinhacao();
+        } else if (opcao == "2") {
+            ExecutarCalculadora(memoria, historico);
+        } else if (opcao == "3") {
+            println("");
+            print("Ate logo, ");
+            print(nome);
+            println("! Obrigado por usar o HPHL!");
+            executando = false;
+        } else {
+            println("Opcao invalida. Digite 1, 2 ou 3.");
+        }
+    }
+}

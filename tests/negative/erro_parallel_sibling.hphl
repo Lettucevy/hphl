@@ -1,0 +1,16 @@
+// erro_parallel_sibling.hphl - teste negativo: cada parte de `parallel` é uma
+// tarefa com escopo próprio — referenciar uma variável de OUTRA parte deve dar
+// erro de compilação com a dica "variável ... pertence a OUTRA parte"
+
+void Main() {
+    parallel {
+        {
+            int j = 0;      // parte 0: declara e usa j
+            j++;
+            print(j);
+        }
+        {
+            j = 5;          // parte 1: j não existe aqui (é da irmã)
+        }
+    }
+}

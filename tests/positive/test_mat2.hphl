@@ -1,0 +1,23 @@
+// B11: matrizes multidimensionais com memory policies
+void Main() {
+    // stack (default) - matriz fixa 2x3
+    int[2][3] mat_stack = {{1, 2, 3}, {4, 5, 6}};
+    print(mat_stack[0][0]);
+    print("\n");
+    print(mat_stack[1][2]);
+    print("\n");
+
+    // heap - matriz alocada dinamicamente
+    heap int[2][3] mat_heap = {{10, 20, 30}, {40, 50, 60}};
+    print(mat_heap[0][0]);
+    print("\n");
+    print(mat_heap[1][2]);
+    print("\n");
+
+    // 3D - 2 matrizes 2x3
+    int[2][2][3] cube = {{{1, 2, 3}, {4, 5, 6}}, {{7, 8, 9}, {10, 11, 12}}};
+    print(cube[0][0][0]);
+    print("\n");
+    print(cube[1][1][2]);
+    print("\n");
+}

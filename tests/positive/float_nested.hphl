@@ -1,0 +1,25 @@
+// float_nested.hphl - regressão: binária float aninhada no rhs clobberava
+// o lhs em xmm1 (X*o.X + Y*o.Y devolvia 16 em vez de 11). O rhs agora faz
+// spill quando pode destruir xmm1.
+class Vec {
+  float<64> X;
+  float<64> Y;
+  Vec(float<64> x, float<64> y) { X = x; Y = y; }
+  float<64> Dot(Vec o) {
+    return X * o.X + Y * o.Y;
+  }
+}
+
+void Main() {
+  var u = new Vec(1.0, 2.0);
+  var v = new Vec(3.0, 4.0);
+  assert(u.Dot(v) == 11.0);
+  float<64> a = 1.5;
+  float<64> b = 2.0;
+  float<64> c = 3.0;
+  assert(a * b + c == 6.0);
+  assert((a + b) * (c - a) == 5.25);
+  assert(a + b > c);
+  assert(c - b < a + b);
+  print("float_nested ok\n");
+}

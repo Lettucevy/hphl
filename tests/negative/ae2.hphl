@@ -1,0 +1,10 @@
+﻿class P {
+    public int v;
+}
+P Ok(P p) { return p; }
+void Main() {
+    heap P h;
+    h.v = 1;
+    P r = Ok(h);
+    println(r.v);
+}

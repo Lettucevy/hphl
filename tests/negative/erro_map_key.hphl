@@ -1,0 +1,4 @@
+class Player { public int id; }
+void Main() {
+    map<Player, int> m;
+}

@@ -1,0 +1,37 @@
+// hello.hphl: Basic introductory HP-HL program
+// Compile:  hphlc hello.hphl -o hello.exe
+// Run:      hello.exe
+
+int Factorial(int n) {
+    if (n <= 1) {
+        return 1;
+    }
+    return n * Factorial(n - 1);
+}
+
+void Main() {
+    print("Hello, HP-HL world!\n");
+
+    int x = 42;
+    print("x = ");
+    print(x);
+    print("\n");
+
+    float pi = 3.14159;
+    print("pi = ");
+    print(pi);
+    print("\n");
+
+    print("5! = ");
+    print(Factorial(5));
+    print("\n");
+
+    int sum = 0;
+    for (int i = 1; i <= 10; i++) {
+        sum += i;
+    }
+    
+    print("sum 1..10 = ");
+    print(sum);
+    print("\n");
+}

@@ -1,0 +1,24 @@
+// stress_region.hphl: Nested region join stress test with adjustable workers
+// parallel foreach aninhado (região join). Com o fix + HPHL_WORKERS ajustável,
+// roda deadlock-free em qualquer tamanho de pool.
+int[4] g = {1, 2, 3, 4};
+atomic int s = 0;
+shared int k = 0; // M11.1: escrita (++ ) em spawn/parallel exige política
+
+void Main() {
+    parallel {
+        {
+            k++;
+            parallel foreach (var x in g) {
+                s += x;
+            }
+        }
+        {
+            k++;
+        }
+    }
+    print(s);
+    print("\n");
+    print(k);
+    print("\n");
+}

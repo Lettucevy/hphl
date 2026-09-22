@@ -1,0 +1,11 @@
+// erro: enum sem derive Comparable não pode usar < / >
+enum Cor {
+  Vermelh,
+  Azul,
+}
+
+void Main() {
+  Cor a = Cor.Vermelho;
+  Cor b = Cor.Azul;
+  if (a < b) { print(1, "\n"); }
+}

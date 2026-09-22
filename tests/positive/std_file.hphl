@@ -1,0 +1,20 @@
+// std_file.hphl — M12.4: file IO (builtins globais)
+void Main() {
+    // write + read round-trip
+    write_file("test_std.txt", "linha 1\nlinha 2\n");
+    println(file_exists("test_std.txt"));   // true
+    string content = read_file("test_std.txt");
+    println(str_len(content));              // 18
+
+    // append
+    append_file("test_std.txt", "linha 3\n");
+    content = read_file("test_std.txt");
+    println(str_len(content));              // 27
+
+    // remove
+    println(remove_file("test_std.txt"));   // true
+    println(file_exists("test_std.txt"));   // false
+
+    // read inexistente → string vazia
+    println(str_len(read_file("nao_existe.txt")));  // 0
+}

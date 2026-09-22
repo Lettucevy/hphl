@@ -1,0 +1,7 @@
+// erro_channel_type.hphl - teste negativo: Send com tipo incompatível com o
+// elemento do channel (spec §10, M2)
+void Main() {
+    channel<int> ch = new channel<int>(2);
+    ch.Send("texto"); // erro: elemento é int
+    print("done\n");
+}

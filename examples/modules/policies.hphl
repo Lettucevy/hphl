@@ -1,0 +1,32 @@
+// policies.hphl: Memory policies (stack, heap, arena, pool, shared)
+
+void Main() {
+    int stack_v = 10;                // stack (padrão): valor direto no frame
+    heap int heap_v = 20;            // heap: ponteiro alocado, liberado no fim da função
+    arena int arena_v = 30;          // arena: mesmo ciclo no M1 (malloc + free no fim)
+    pool int pool_v = 40;            // pool: idem
+    shared int shared_v = 50;        // shared: idem
+
+    stack_v += 1;
+    heap_v += 2;
+    arena_v += 3;
+    pool_v += 4;
+    shared_v += 5;
+
+    print("stack = ");   print(stack_v);   print("\n");
+    print("heap = ");    print(heap_v);    print("\n");
+    print("arena = ");   print(arena_v);   print("\n");
+    print("pool = ");    print(pool_v);    print("\n");
+    print("shared = ");  print(shared_v);  print("\n");
+
+    heap string s = "texto na heap";       // string com política heap
+    print(s);
+    print("\n");
+
+    // heap float policy works identically
+    heap float f = 2.5;
+    f = f * 2;
+    print("f = ");
+    print(f);
+    print("\n");
+}

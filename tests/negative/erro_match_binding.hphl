@@ -1,0 +1,16 @@
+enum Q {
+    A,
+    B(int x),
+}
+
+int f(Q q) {
+    return match (q) {
+        Q.A => 1,
+        Q.B(x, y) => 2,
+    };
+}
+
+void Main() {
+    print(f(Q.B(5)));
+    print("\n");
+}

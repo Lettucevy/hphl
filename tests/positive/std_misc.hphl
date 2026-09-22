@@ -1,0 +1,14 @@
+// std_misc.hphl — M12.5: extras (random, sleep, env)
+void Main() {
+    double r = random();
+    if (r >= 0.0 && r < 1.0) println("random ok");
+
+    var ri = random_int(1, 6);
+    if (ri >= 1 && ri <= 6) println("dado ok");
+
+    string path = env_var("PATH");
+    if (str_len(path) > 0) println("env ok");
+
+    sleep_ms(1);
+    println("sleep ok");
+}

@@ -1,0 +1,79 @@
+// Dynamic lists (Milestone 2): list<T> grows at runtime.
+// Members: Add(x) and Length; elements are read/written with [i].
+// Lists start empty; they are freed automatically at function exit.
+
+class Player {
+    int hp;
+    int score;
+}
+
+Player MakePlayer(int hp, int score) {
+    var p = new Player();
+    p.hp = hp;
+    p.score = score;
+    return p;
+}
+
+Main() {
+    list<int> scores;
+    print("empty length: ");
+    print(scores.Length);
+    print("\n");
+
+    // Add grows the list dynamically
+    scores.Add(10);
+    scores.Add(20);
+    scores.Add(30);
+    print("scores[0] = ");
+    print(scores[0]);
+    print("\n");
+    print("length = ");
+    print(scores.Length);
+    print("\n");
+
+    // Write through the index
+    scores[1] = 99;
+    print("scores[1] = ");
+    print(scores[1]);
+    print("\n");
+
+    // foreach walks the elements in order
+    var total = 0;
+    foreach (var s in scores) {
+        total += s;
+    }
+    print("total = ");
+    print(total);
+    print("\n");
+
+    // lists of objects hold heap pointers
+    list<Player> team;
+    team.Add(MakePlayer(100, 5));
+    team.Add(MakePlayer(80, 9));
+    foreach (var p in team) {
+        print("player hp = ");
+        print(p.hp);
+        print("\n");
+    }
+    team[0].hp = 120;
+    print("after change, team[0].hp = ");
+    print(team[0].hp);
+    print("\n");
+
+    // floats and strings work too
+    list<float> temps;
+    temps.Add(36.5);
+    temps.Add(37.2);
+    print("temps[0] = ");
+    print(temps[0]);
+    print("\n");
+
+    list<string> words;
+    words.Add("hello");
+    words.Add("world");
+    print("words[1] = ");
+    print(words[1]);
+    print("\n");
+
+    print("done\n");
+}

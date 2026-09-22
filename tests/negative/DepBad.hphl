@@ -1,0 +1,4 @@
+// DepBad.hphl - módulo negativo: depende de módulo que não existe/importado
+module DepBad depends on NoSuchModule;
+
+public int thing() { return 3; }

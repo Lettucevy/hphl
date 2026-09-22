@@ -1,0 +1,11 @@
+class P {
+    private int vida;
+    private int Vida {
+        get { return vida; }
+        set { vida = value; }
+    }
+}
+void Main() {
+    P p;
+    p.Vida = 7;
+}

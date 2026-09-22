@@ -1,0 +1,12 @@
+// erro_out_read_unassigned.hphl — leitura de parâmetro 'out' antes de
+// atribuição definida (SPEC §5.2): o callee não pode enxergar o valor antigo
+// do lvalue do chamador
+public void Calcular(out int resultado) {
+  int dobro = resultado * 2; // erro: leitura antes de qualquer atribuição
+  resultado = dobro;
+}
+
+public void Main() {
+  int x = 0;
+  Calcular(out x);
+}

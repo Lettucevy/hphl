@@ -1,0 +1,13 @@
+// std_transform.hphl: String parsing and transformation (trim, toLower, toUpper, parseInt)
+void Main() {
+    println(replace("banana", "na", "NA"));
+    println(replace("abc", "x", "y"));
+    println(join(split("a,b,c", ","), "-"));
+    println(join(split("1:2:3", ":"), "+"));
+    println(parse_int("42") + 1);
+    println(parse_int("-17"));
+    println(parse_int("abc"));
+    println(parse_float("3.14") * 2.0);
+    println(is_numeric("123.45"));
+    println(is_numeric("hello"));
+}

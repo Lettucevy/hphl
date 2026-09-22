@@ -1,0 +1,9 @@
+class Player {
+  int vida;
+  Player(int v) { this.vida = v; }
+}
+
+void Main() {
+  Player p = new Player(1);
+  p?.Faltando(2);
+}

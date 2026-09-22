@@ -1,0 +1,12 @@
+// erro: mais de um '..resto' no mesmo padrão
+int f(list<int> xs) {
+  return match (xs) {
+    [a, ..r1, ..r2] => 0,
+    _ => 1,
+  };
+}
+
+void Main() {
+  list<int> x;
+  print(f(x), "\n");
+}

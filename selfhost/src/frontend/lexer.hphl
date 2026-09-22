@@ -1,0 +1,227 @@
+module Lexer;
+
+// ===========================================================================
+// selfhost/src/frontend/lexer.hphl — Tokenizer da linguagem escrito em HP-HL
+// Espelha compiler/src/frontend/lexer.h e lexer.cpp
+// ===========================================================================
+
+import "token.hphl";
+
+class Lexer {
+    string src;
+    int pos;
+
+    Lexer(string s) {
+        this.src = s;
+        this.pos = 0;
+    }
+
+    // caractere na posição i como string de 1 byte ("" se fora dos limites)
+    string At(int i) {
+        if (i < 0 || i >= str_len(this.src)) return "";
+        return sub_str(this.src, i, 1);
+    }
+
+    bool IsDigit(string c) {
+        if (c == "") return false;
+        return contains("0123456789", c);
+    }
+
+    bool IsIdentStart(string c) {
+        if (c == "") return false;
+        if (contains("abcdefghijklmnopqrstuvwxyz_ABCDEFGHIJKLMNOPQRSTUVWXYZ", c)) return true;
+        // M21 2.2: UTF-8 bytes >=0x80 como ident (byte alto não-delimitador)
+        if (contains("0123456789", c)) return false;
+        if (contains(" \t\n\r\"'(){}[];,.+-*/%=<>!&|^~?:@", c)) return false;
+        if (str_len(c) == 1) return true;
+        return false;
+    }
+
+    bool IsIdentPart(string c) {
+        if (this.IsIdentStart(c) || this.IsDigit(c)) return true;
+        // M21 2.2: continua aceitando bytes altos como parte do ident
+        if (c != "" && str_len(c) == 1 && !contains(" \t\n\r\"'(){}[];,.+-*/%=<>!&|^~?:@", c)) return true;
+        return false;
+    }
+
+    // pula espaços, quebras de linha e comentários (// ... e /* ... */)
+    void SkipWs() {
+        // BOM UTF-8 (EF BB BF): pula pelos codigos exatos. O teste antigo
+        // (parar em ident-start) quebrou em M21 2.2, quando bytes altos
+        // viraram ident.
+        while (this.pos < 3 && this.pos < str_len(this.src)) {
+            string b = this.At(this.pos);
+            int code = ord(b);
+            if (code == 239 || code == 187 || code == 191) {
+                this.pos = this.pos + 1;
+                continue;
+            }
+            break;
+        }
+        while (this.pos < str_len(this.src)) {
+            string c = this.At(this.pos);
+            if (c == " " || c == "\t" || c == "\n" || c == "\r") {
+                this.pos = this.pos + 1;
+                continue;
+            }
+
+            if (c == "/" && this.At(this.pos + 1) == "/") {
+                while (this.pos < str_len(this.src) && this.At(this.pos) != "\n") {
+                    this.pos = this.pos + 1;
+                }
+                continue;
+            }
+            if (c == "/" && this.At(this.pos + 1) == "*") {
+                this.pos = this.pos + 2;
+                while (this.pos < str_len(this.src)) {
+                    if (this.At(this.pos) == "*" && this.At(this.pos + 1) == "/") {
+                        this.pos = this.pos + 2;
+                        break;
+                    }
+                    this.pos = this.pos + 1;
+                }
+                continue;
+            }
+            break;
+        }
+    }
+
+    // próximo token (kind=Eof no fim)
+    Token Next() {
+        this.SkipWs();
+        var n = str_len(this.src);
+        if (this.pos >= n) return new Token(TokenKind.Eof, "");
+        string c = this.At(this.pos);
+
+        // identificador / keyword
+        if (this.IsIdentStart(c)) {
+            int start = this.pos;
+            while (this.pos < n && this.IsIdentPart(this.At(this.pos))) {
+                this.pos = this.pos + 1;
+            }
+            string text = sub_str(this.src, start, this.pos - start);
+            if (text == "if" || text == "else" || text == "while" ||
+                text == "for" || text == "return" || text == "class" ||
+                text == "new" || text == "var" || text == "int" ||
+                text == "uint" || text == "u8" || text == "u16" ||
+                text == "u32" || text == "u64" ||
+                text == "float" || text == "double" ||
+                text == "bool" || text == "char" || text == "string" ||
+                text == "void" || text == "true" || text == "false" ||
+                text == "null" || text == "this" ||
+                text == "match" || text == "try" ||
+                text == "catch" || text == "throw" || text == "import" ||
+                text == "module" || text == "enum" || text == "struct" ||
+                text == "spawn" || text == "parallel" ||
+                text == "break" || text == "continue" ||
+                text == "do" || text == "switch" ||
+                text == "case" || text == "default" ||
+                text == "list" || text == "map" ||
+                text == "Option" || text == "option" ||
+                text == "Result" || text == "result" ||
+                text == "interface" || text == "when" ||
+                text == "where" || text == "supports" ||
+                text == "foreach" || text == "in" ||
+                text == "ref" || text == "out" ||
+                text == "heap" || text == "arena" ||
+                text == "shared" || text == "stack" ||
+                text == "require" || text == "ensure" ||
+                text == "compiletime" || text == "deterministic" ||
+                text == "lock" || text == "atomic" || text == "threadlocal" ||
+                text == "actor" || text == "channel" || text == "await" ||
+                text == "task" ||
+                text == "derive" || text == "checked" || text == "saturate") {
+                return new Token(TokenKind.Keyword, text);
+            }
+            return new Token(TokenKind.Ident, text);
+        }
+
+        // número (inteiro; float com ponto simples)
+        if (this.IsDigit(c)) {
+            int start = this.pos;
+            while (this.pos < n && this.IsDigit(this.At(this.pos))) {
+                this.pos = this.pos + 1;
+            }
+            if (this.pos < n && this.At(this.pos) == "." && this.IsDigit(this.At(this.pos + 1))) {
+                this.pos = this.pos + 1;
+                while (this.pos < n && this.IsDigit(this.At(this.pos))) {
+                    this.pos = this.pos + 1;
+                }
+            }
+            if (this.pos < n && (this.At(this.pos) == "e" || this.At(this.pos) == "E")) {
+                int esave = this.pos;
+                this.pos = this.pos + 1;
+                if (this.pos < n && (this.At(this.pos) == "+" || this.At(this.pos) == "-")) {
+                    this.pos = this.pos + 1;
+                }
+                if (this.pos < n && this.IsDigit(this.At(this.pos))) {
+                    while (this.pos < n && this.IsDigit(this.At(this.pos))) {
+                        this.pos = this.pos + 1;
+                    }
+                } else {
+                    this.pos = esave;
+                }
+            }
+            return new Token(TokenKind.Number, sub_str(this.src, start, this.pos - start));
+        }
+
+        // string literal com escape \"
+        if (c == "\"") {
+            int start = this.pos;
+            this.pos = this.pos + 1;
+            while (this.pos < n) {
+                string sc = this.At(this.pos);
+                if (sc == "\\") { this.pos = this.pos + 2; continue; }
+                if (sc == "\"") { this.pos = this.pos + 1; break; }
+                this.pos = this.pos + 1;
+            }
+            return new Token(TokenKind.Str, sub_str(this.src, start, this.pos - start));
+        }
+
+        // char literal 'x' (com escapes) -> codigo numerico (char = int)
+        if (c == "'") {
+            this.pos = this.pos + 1;
+            string ch = this.At(this.pos);
+            int code = 0;
+            if (ch == "\\") {
+                this.pos = this.pos + 1;
+                string esc = this.At(this.pos);
+                this.pos = this.pos + 1;
+                if (esc == "n") code = 10;
+                else if (esc == "t") code = 9;
+                else if (esc == "r") code = 13;
+                else if (esc == "0") code = 0;
+                else if (esc == "\\") code = 92;
+                else if (esc == "'") code = 39;
+                else if (esc == "\"") code = 34;
+                else code = ord(esc);
+            } else {
+                code = ord(ch);
+                this.pos = this.pos + 1;
+            }
+            while (this.pos < n && this.At(this.pos) != "'") this.pos = this.pos + 1;
+            this.pos = this.pos + 1;
+            return new Token(TokenKind.Number, "" + code);
+        }
+
+        // operadores de 3 e 2 caracteres
+        if (c == "." && this.At(this.pos + 1) == "." && this.At(this.pos + 2) == ".") {
+            this.pos = this.pos + 3;
+            return new Token(TokenKind.Punct, "...");
+        }
+        string pair = c + this.At(this.pos + 1);
+        if (pair == "==" || pair == "!=" || pair == "<=" || pair == ">=" ||
+            pair == "&&" || pair == "||" || pair == "->" || pair == "+=" ||
+            pair == "-=" || pair == "*=" || pair == "/=" || pair == "++" ||
+            pair == "--" || pair == "::" || pair == "??" || pair == "?." ||
+            pair == "?[" || pair == "=>" || pair == ".." || pair == "<<" ||
+            pair == ">>" || pair == "%=") {
+            this.pos = this.pos + 2;
+            return new Token(TokenKind.Punct, pair);
+        }
+
+        // pontuação / operador de 1 caractere
+        this.pos = this.pos + 1;
+        return new Token(TokenKind.Punct, c);
+    }
+}

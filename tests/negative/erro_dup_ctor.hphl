@@ -1,0 +1,10 @@
+// erro_dup_ctor.hphl - dois construtores com mesma aridade são rejeitados.
+class Box {
+  int v;
+  Box(int x) { this.v = x; }
+  Box(int y) { this.v = y; }
+}
+
+void Main() {
+  print("nope\n");
+}

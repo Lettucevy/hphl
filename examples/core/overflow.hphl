@@ -1,0 +1,67 @@
+// Overflow policies (Milestone 2): behavior when integer ops exceed the
+// type width. Applied to + - * / %, unary -, ++/-- and compound assignment.
+//   wrap     truncates to the width (processor behavior)
+//   checked  truncates and panics at runtime if the true result is out of range
+//   saturate clamps to the min/max of the width
+//   promote  computes in 64 bits (result becomes int<64>); big/small cost-free
+
+Main() {
+    // wrap: 8-bit counter wraps around
+    int<8, wrap> b = 127;
+    b += 1;
+    print("b = ");
+    print(b);
+    print("\n");
+    b--;
+    print("b = ");
+    print(b);
+    print("\n");
+
+    // wrap (32-bit): largest int + 1 becomes most negative
+    int<32, wrap> w = 2147483647;
+    w++;
+    print("w = ");
+    print(w);
+    print("\n");
+
+    // saturate: image-style clamping to [0, 255]
+    int<8, saturate> c = 250;
+    c += 10;
+    print("c = ");
+    print(c);
+    print("\n");
+    c -= 300;
+    print("c = ");
+    print(c);
+    print("\n");
+
+    // saturate (32-bit): clamps both sides
+    int<32, saturate> s = 2147483000;
+    s += 1000;
+    print("s = ");
+    print(s);
+    print("\n");
+
+    // checked: values that stay in range are fine
+    int<32, checked> k = 1000000;
+    k += 2000000;
+    print("k = ");
+    print(k);
+    print("\n");
+
+    // checked: multiplication within range is fine too
+    int<16, checked> m = 100;
+    m *= 3;
+    print("m = ");
+    print(m);
+    print("\n");
+
+    // promote: int<32> arithmetic grows to 64 bits instead of overflowing
+    int<32, promote> p = 100000;
+    int<64> sq = p * p;
+    print("p*p = ");
+    print(sq);
+    print("\n");
+
+    print("done\n");
+}

@@ -1,0 +1,6 @@
+// Negative test: checked overflow must panic at runtime.
+Main() {
+    int<32, checked> x = 2000000000;
+    x += 2000000000;
+    print(x);
+}

@@ -1,0 +1,10 @@
+// erro_parallel_foreach_sujeito.hphl - teste negativo: 'parallel foreach'
+// no M2 exige array GLOBAL (blob inline na stack local não é visível às
+// tarefas) ou list local (objeto heap compartilhado por ponteiro)
+
+void Main() {
+    int[8] a = {1, 2, 3, 4, 5, 6, 7, 8};
+    parallel foreach (var x in a) {
+    }
+    print(0);
+}

@@ -1,0 +1,21 @@
+// erro_iface_bad_assign.hphl - classe que NAO implementa a interface
+// nao pode ser atribuida a variavel de tipo interface.
+interface Repo<T> {
+  T Get();
+}
+
+class IntRepo : Repo<int> {
+  int value;
+  IntRepo(int v) { this.value = v; }
+  int Get() { return this.value; }
+}
+
+class Other {
+  int x;
+  Other() { this.x = 0; }
+}
+
+void Main() {
+  Repo<int> r = new Other();
+  print("nope\n");
+}

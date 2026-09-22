@@ -1,0 +1,23 @@
+// HIR optimization tests: constant folding, dead branch elimination, and DCE
+Main() {
+  int x = 3 + 4 * 2;          // folding → 11
+  int y = x * 2;              // não folda (x não é literal)
+  float f = 1.5 + 2.25;       // folding → 3.75
+  if (2 + 2 == 4) {           // dead branch → sempre true
+    print("sim\n");
+  } else {
+    print("nao\n");
+  }
+  if (1 == 0) {               // dead branch → sempre false
+    print("morto\n");
+  }
+  int z = 0;                  // DCE: nunca usado
+  print("x=");
+  print(x);
+  print("\n");
+  print("f=");
+  print(f);
+  print("\n");
+  print(y);
+  print("\n");
+}

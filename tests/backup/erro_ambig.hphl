@@ -1,0 +1,9 @@
+// erro_ambig.hphl - an unqualified type name defined in two modules is ambiguous
+
+import "../examples/ModAlpha.hphl";
+import "../examples/ModBeta.hphl";
+
+void Main() {
+    Status x = new Status();
+    print("x\n");
+}

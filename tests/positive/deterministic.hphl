@@ -1,0 +1,33 @@
+// deterministic.hphl — `parallel deterministic` (spec §10, v0.23.0).
+//
+// O modificador executa as partes do bloco em ORDEM (inline, sem spawn nem
+// barreira): o resultado não depende do escalonador. No paralelo real essas
+// três escritas em `soma` seriam uma corrida; aqui a ordem é garantida:
+//
+//   soma = 0; soma += 1 (→1); soma += 10 (→11); soma *= 2 (→22)  →  22
+//
+// Escopos das partes continuam isolados (variável de uma parte não vaza).
+
+void Main() {
+    int soma = 0;
+    parallel deterministic {
+        soma += 1;
+        soma += 10;
+        soma *= 2;
+        int interna = 5;   // vaza para fora? NÃO: escopo da parte
+    }
+    print(soma);
+    print("\n");
+
+    // escopos das partes são isolados (como no paralelo real): uma variável
+    // declarada numa parte só é visível DENTRO dela (use um bloco { } para
+    // agrupar instruções numa única parte).
+    int det = 1;
+    parallel deterministic {
+        { int a = 2; det = det * a; }   // parte 1: det → 2
+        { int b = 3; det = det * b; }   // parte 2: det → 6
+    }
+    print(det);
+    print("\n");
+    print("done\n");
+}

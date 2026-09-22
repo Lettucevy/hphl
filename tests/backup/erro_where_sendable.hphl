@@ -1,0 +1,12 @@
+// erro: list<T> de classe não é sendable (classe é mutável, não atravessa tasks)
+class Caixa {
+    public int v;
+}
+public T Primeiro<T>(list<T> xs) where T : sendable {
+    return xs[0];
+}
+void Main() {
+    list<Caixa> cs;
+    cs.Add(new Caixa());
+    print(Primeiro(cs));
+}

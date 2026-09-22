@@ -1,0 +1,25 @@
+// spawn_sendable.hphl — o que PODE atravessar spawn (M11.4, spec §3/§10):
+// escalares (cópia), classes `derive Sendable` e locais `shared`
+// (intenção explícita de compartilhar)
+
+derive Sendable
+class Evento {
+    public int id;
+    Evento(int id) { this.id = id; }
+}
+
+shared int toques = 0;
+
+void dispara(Evento e) {
+    spawn {
+        println(e.id); // Sendable: atravessa com segurança
+        toques++;      // global shared: sempre ok
+        println(toques);
+    }
+}
+
+void Main() {
+    shared Evento ultimo; // política shared: intenção explícita
+    ultimo = new Evento(7);
+    dispara(new Evento(42));
+}

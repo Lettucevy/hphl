@@ -1,0 +1,11 @@
+int f(int x) {
+    return match (x) {
+        "a" => 1,
+        _ => -1,
+    };
+}
+
+void Main() {
+    print(f(1));
+    print("\n");
+}

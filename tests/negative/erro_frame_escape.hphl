@@ -1,0 +1,18 @@
+// erro_frame_escape.hphl — capturar local 'arena' em spawn transfere ponteiro
+// para objeto que morre no epílogo da função (use-after-free não-determinístico)
+// M11.2 Stack/Frame Escape (spec §3)
+class P {
+    public int v;
+}
+
+void foo() {
+    arena P p;
+    p.v = 99;
+    spawn {
+        println(p.v);
+    }
+}
+
+void Main() {
+    foo();
+}

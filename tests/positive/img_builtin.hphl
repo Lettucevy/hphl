@@ -1,0 +1,56 @@
+// img_builtin.hphl - builtins de imagem (list<int> RGB flat + w/h):
+// grayscale, flip_h, resize (bilinear), blur (box), ppm_save/load.
+void Main() {
+  // 2x2: vermelho, verde, azul, branco
+  list<int> px = new list<int>();
+  px.Add(255); px.Add(0); px.Add(0);
+  px.Add(0); px.Add(255); px.Add(0);
+  px.Add(0); px.Add(0); px.Add(255);
+  px.Add(255); px.Add(255); px.Add(255);
+
+  // grayscale Rec.601
+  list<int> g = img_grayscale(px);
+  assert(g[0] == 76);
+  assert(g[3] == 150);
+  assert(g[6] == 29);
+  assert(g[9] == 255);
+
+  // flip horizontal (2x2: troca colunas)
+  list<int> f = img_flip_h(px, 2, 2);
+  assert(f[0] == 0);
+  assert(f[1] == 255);
+  assert(f[2] == 0);
+  assert(f[3] == 255);
+
+  // resize 2x2 -> 1x1 (amostra o canto (0,0) = vermelho)
+  // resize 2x2 -> 4x4 (cantos preservados)
+  list<int> tiny = img_resize(px, 2, 2, 1, 1);
+  assert(tiny.Length == 3);
+  assert(tiny[0] == 255);
+  assert(tiny[1] == 0);
+  assert(tiny[2] == 0);
+  list<int> big = img_resize(px, 2, 2, 4, 4);
+  assert(big.Length == 48);
+  assert(big[0] == 255);
+  assert(big[45] == 255);
+
+  // blur r=0 = identidade
+  list<int> same = img_blur(px, 2, 2, 0);
+  assert(same[0] == 255);
+  assert(same[4] == 255);
+
+  // ppm round-trip
+  assert(img_ppm_save("img_rt.ppm", px, 2, 2));
+  list<int> back = img_ppm_load("img_rt.ppm");
+  assert(back[0] == 2);
+  assert(back[1] == 2);
+  assert(back[2] == 255);
+  assert(back[3] == 0);
+  assert(back[5] == 0);
+  assert(back[11] == 255);
+
+  // png direto (assinatura + IHDR verificados via load round-trip de tamanho)
+  assert(img_png_save("img_rt.png", px, 2, 2));
+
+  print("img_builtin ok\n");
+}

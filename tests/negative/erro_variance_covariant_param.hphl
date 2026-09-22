@@ -1,0 +1,8 @@
+// erro: tipo covariante 'out T' não pode ser usado como parâmetro de método
+interface IProducer<out T> {
+    void Set(T val);
+}
+
+void Main() {
+    print(1);
+}

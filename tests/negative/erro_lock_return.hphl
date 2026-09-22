@@ -1,0 +1,18 @@
+// erro_lock_return.hphl — teste negativo: return dentro de lock é vetado
+// (evita travar o spinlock para sempre)
+
+class Recurso {
+    int valor;
+}
+
+int Metade(Recurso r) {
+    lock (r) {
+        return r.valor / 2;
+    }
+    return 0;
+}
+
+void Main() {
+    Recurso r = new Recurso();
+    print(Metade(r));
+}

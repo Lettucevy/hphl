@@ -1,0 +1,22 @@
+// m20_parser_test.hphl — M20.1.2: parser/lexer novos
+void Main() {
+    print("M20.1.2 parser/lexer\n");
+    // Unicode identifier
+    int variável = 42;
+    print("variável = ");
+    print(variável);
+    print("\n");
+    // Raw string
+    string r = r"C:\Users\test\named";
+    print("raw: ");
+    print(r);
+    print("\n");
+    // Multiline
+    string m = """line1
+line2
+line3""";
+    print("multi: ");
+    print(m);
+    print("\n");
+    print("M20.1.2 OK\n");
+}

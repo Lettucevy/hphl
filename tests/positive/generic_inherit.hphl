@@ -1,0 +1,19 @@
+// A7: herança simples não-genérica (deferrada warning no genérico)
+// Esse teste apenas valida que o warning do A7 não bloqueia mais
+class Base {
+    int valor;
+}
+
+class Derivada : Base {
+    int extra;
+}
+
+void Main() {
+    Derivada d = new Derivada();
+    d.valor = 10;
+    d.extra = 20;
+    print(d.valor);
+    print("\n");
+    print(d.extra);
+    print("\n");
+}

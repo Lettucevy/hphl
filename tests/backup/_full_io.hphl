@@ -1,0 +1,9 @@
+void Main() {
+    write_file("teste.txt", "linha 1\n");
+    println(file_exists("teste.txt"));
+    println(append_file("teste.txt", "linha 2\n"));
+    string s = read_file("teste.txt");
+    println(s);
+    println(remove_file("teste.txt"));
+    println(file_exists("teste.txt"));
+}

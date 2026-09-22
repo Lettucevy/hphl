@@ -1,0 +1,8 @@
+// erro: variância (in/out) só é permitida em interfaces
+class Caixa<out T> {
+    public T Val;
+}
+
+void Main() {
+    print(1);
+}

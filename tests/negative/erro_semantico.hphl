@@ -1,0 +1,7 @@
+// erro_semantico.hphl — arquivo de teste negativo: deve FALHAR na análise semântica
+// (variável inexistente → CompileError → exit code != 0)
+
+void Main() {
+    int x = 10;
+    print(x + naoExiste);
+}

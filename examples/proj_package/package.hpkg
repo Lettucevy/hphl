@@ -1,0 +1,6 @@
+{
+  "name": "proj_package",
+  "version": "1.0.0",
+  "sources": ["main.hphl"],
+  "dependencies": ["libs\\util"]
+}

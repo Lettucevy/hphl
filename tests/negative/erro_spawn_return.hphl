@@ -1,0 +1,13 @@
+// erro_spawn_return.hphl — teste negativo: return dentro de 'spawn' não faz
+// sentido (a tarefa é um procedimento void sem frame de quem chamou)
+
+atomic int total = 0;
+
+void Main() {
+    spawn task {
+        for (int i = 0; i < 10; i++) {
+            if (i == 5) return;
+            total++;
+        }
+    }
+}

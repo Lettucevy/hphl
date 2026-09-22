@@ -1,0 +1,16 @@
+// erro_lock_nested.hphl — teste negativo: lock aninhado (spinlock global não
+// é reentrante; C# permite, aqui trava)
+
+class Recurso {
+    int valor;
+}
+
+void Main() {
+    Recurso a = new Recurso();
+    Recurso b = new Recurso();
+    lock (a) {
+        lock (b) {
+            print(1);
+        }
+    }
+}

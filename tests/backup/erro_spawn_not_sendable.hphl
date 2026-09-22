@@ -1,0 +1,18 @@
+// erro_spawn_not_sendable.hphl — classe sem `derive Sendable` capturada em
+// spawn compartilha o objeto entre threads sem sincronização
+// (M11.4 Sendable enforcement, spec §3/§10)
+class P {
+    public int v;
+}
+
+void bar() {
+    P p;
+    p.v = 5;
+    spawn {
+        println(p.v);
+    }
+}
+
+void Main() {
+    bar();
+}

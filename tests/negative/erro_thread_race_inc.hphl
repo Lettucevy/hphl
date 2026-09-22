@@ -1,0 +1,9 @@
+// erro_thread_race_inc.hphl — ++/-- em global sem 'shared' dentro de spawn
+// é escrita composta não sincronizada (M11.1 Atomic completeness, spec §3/§10)
+int contador;
+
+void Main() {
+    spawn {
+        contador++;
+    }
+}

@@ -1,0 +1,10 @@
+// erro: traço derivado desconhecido
+derive Hashable
+enum Cor {
+  VERMELHO,
+  AZUL,
+}
+
+void Main() {
+  print((int)Cor.VERMELHO, "\n");
+}

@@ -1,0 +1,122 @@
+// tests/positive/result_full.hphl
+// Validacao completa do tipo Result<T, E> e Option<T> (item 2.14)
+
+result<int, string> divide(int a, int b) {
+    if (b == 0) {
+        return Err("division by zero");
+    }
+    return Ok(a / b);
+}
+
+option<int> findFirstEven(int[4] arr, int n) {
+    for (int i = 0; i < n; i++) {
+        if (arr[i] % 2 == 0) {
+            return Some(arr[i]);
+        }
+    }
+    return None;
+}
+
+void testResultProperties() {
+    Result<int, string> okRes = Ok(42);
+    Result<int, string> errRes = Err("falha");
+
+    assert(okRes.IsOk == true);
+    assert(okRes.IsError == false);
+    assert(okRes.IsErr == false);
+    assert(okRes.Value == 42);
+
+    assert(errRes.IsOk == false);
+    assert(errRes.IsError == true);
+    assert(errRes.IsErr == true);
+    assert(errRes.Error == "falha");
+}
+
+void testOptionProperties() {
+    Option<int> someOpt = Some(10);
+    Option<int> noneOpt = None;
+
+    assert(someOpt.HasValue == true);
+    assert(someOpt.IsSome == true);
+    assert(someOpt.IsNone == false);
+    assert(someOpt.Value == 10);
+
+    assert(noneOpt.HasValue == false);
+    assert(noneOpt.IsSome == false);
+    assert(noneOpt.IsNone == true);
+}
+
+void testResultMethods() {
+    result<int, string> okRes = Ok(100);
+    result<int, string> errRes = Err("ops");
+
+    assert(okRes.is_ok() == true);
+    assert(okRes.is_err() == false);
+    assert(okRes.unwrap() == 100);
+    assert(okRes.unwrap_or(999) == 100);
+
+    assert(errRes.is_ok() == false);
+    assert(errRes.is_err() == true);
+    assert(errRes.unwrap_err() == "ops");
+    assert(errRes.unwrap_or(999) == 999);
+}
+
+void testOptionMethods() {
+    option<int> s = Some(50);
+    option<int> n = None;
+
+    assert(s.is_some() == true);
+    assert(s.is_none() == false);
+    assert(s.unwrap() == 50);
+    assert(s.unwrap_or(77) == 50);
+
+    assert(n.is_some() == false);
+    assert(n.is_none() == true);
+    assert(n.unwrap_or(77) == 77);
+}
+
+void testCoalescing() {
+    Result<int, string> r1 = Ok(123);
+    Result<int, string> r2 = Err("erro");
+
+    assert((r1 ?? 456) == 123);
+    assert((r2 ?? 456) == 456);
+
+    Option<int> o1 = Some(789);
+    Option<int> o2 = None;
+
+    assert((o1 ?? 111) == 789);
+    assert((o2 ?? 111) == 111);
+}
+
+void testConcurrency() {
+    // Sendable: canal de Result
+    channel<Result<int, string>> ch = new channel<Result<int, string>>(2);
+    ch.Send(Ok(10));
+    ch.Send(Err("erro no canal"));
+
+    Result<int, string> m1 = ch.Receive();
+    Result<int, string> m2 = ch.Receive();
+
+    assert(m1.IsOk && m1.Value == 10);
+    assert(m2.IsErr && m2.Error == "erro no canal");
+
+    // Spawn com retorno de Result
+    task<Result<int, string>> t = spawn {
+        return divide(50, 2);
+    };
+    Result<int, string> res = t.Wait();
+    assert(res.IsOk);
+    assert(res.Value == 25);
+}
+
+void Main() {
+    testResultProperties();
+    testOptionProperties();
+    testResultMethods();
+    testOptionMethods();
+    testCoalescing();
+    testConcurrency();
+
+    print("result_full passed!\n");
+}

@@ -1,0 +1,10 @@
+// erro: Serialize() exige enum com derive Serializable
+enum Cor {
+  VERMELHO,
+  AZUL,
+}
+
+void Main() {
+  Cor c = Cor.AZUL;
+  print(c.Serialize(), "\n");
+}

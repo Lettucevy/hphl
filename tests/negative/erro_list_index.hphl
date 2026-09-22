@@ -1,0 +1,6 @@
+// Negative test: list index out of bounds must panic at runtime.
+Main() {
+    list<int> xs;
+    xs.Add(5);
+    print(xs[1]);
+}

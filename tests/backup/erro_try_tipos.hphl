@@ -1,0 +1,7 @@
+void Main() {
+  try {
+    throw "texto";
+  } catch (int e) {
+    print(e, "\n");
+  }
+}

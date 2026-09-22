@@ -1,0 +1,68 @@
+// tests/positive/bitwise_not.hphl
+// Validacao do operador bitwise NOT (~) (item 2.16)
+
+const int K0 = ~0;
+const int K42 = ~42;
+
+void testBasicValues() {
+    int z = 0;
+    assert(~z == -1);
+
+    int m1 = -1;
+    assert(~m1 == 0);
+
+    int one = 1;
+    assert(~one == -2);
+
+    int m2 = -2;
+    assert(~m2 == 1);
+
+    int v42 = 42;
+    assert(~v42 == -43);
+}
+
+void testIdentities() {
+    int[5] vals;
+    vals[0] = 0;
+    vals[1] = 1;
+    vals[2] = 42;
+    vals[3] = -100;
+    vals[4] = 12345;
+
+    for (int i = 0; i < 5; i++) {
+        int x = vals[i];
+        // ~x == -(x + 1)
+        assert(~x == -(x + 1));
+        // ~~x == x
+        assert(~~x == x);
+        // x & ~x == 0
+        assert((x & ~x) == 0);
+        // x | ~x == -1
+        assert((x | ~x) == -1);
+        // x ^ ~x == -1
+        assert((x ^ ~x) == -1);
+    }
+}
+
+void testBitwiseFormulas() {
+    int x = 3855; // 0x0F0F
+    int y = 13107; // 0x3333
+
+    // (x & ~y) | (x & y) == x
+    int res = (x & ~y) | (x & y);
+    assert(res == x);
+}
+
+void testCompileTimeConstants() {
+    assert(K0 == -1);
+    assert(K42 == -43);
+}
+
+void Main() {
+    testBasicValues();
+    testIdentities();
+    testBitwiseFormulas();
+    testCompileTimeConstants();
+
+    print("bitwise_not passed!\n");
+}

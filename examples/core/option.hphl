@@ -1,0 +1,87 @@
+// option.hphl: Option/Result, `?`, `??`, panic and assert
+// Option<T> = None | Some(T); Result<T, E> = Ok(T) | Err(E)
+
+string describe(Option<int> v) {
+    return match (v) {
+        Some(x) => "Some(" + (x == 1 ? "one" : "other") + ")",
+        None => "None",
+    };
+}
+
+int force(Result<int, string> r) {
+    return match (r) {
+        Ok(v) => v,
+        Err(msg) => -1,
+    };
+}
+
+// `?` operator: propagates Err(n) when an operation fails
+Result<int, string> half(int n) {
+    if (n % 2 != 0) {
+        return Err("odd");
+    }
+    return Ok(n / 2);
+}
+
+Result<int, string> halfOrZero(Result<int, string> r) {
+    Result<int, string> ok = match (r) {
+        Ok(v) when v % 2 == 0 => Ok(v / 2),
+        Ok(v) => Err("odd"),
+        Err(msg) => Err(msg),
+    };
+    int v = ok?; // propaga: Err("odd")/Err(msg) sai por aqui; Ok vira int
+    return Ok(v);
+}
+
+int tryHalf(Result<int, string> r) {
+    return match (r) {
+        Ok(v) => v / 2,
+        Err(msg) => 0,
+    };
+}
+
+// `??` null-coalescing: extracts Some value or evaluates default
+int withDefault(Option<int> o, int def) {
+    return o ?? def;
+}
+
+void Main() {
+    Option<int> a = Some(7);
+    Option<int> b = None;
+
+    print(describe(a));
+    print("\n");
+    print(describe(b));
+    print("\n");
+
+    print("half 10 = ");
+    print(force(half(10)));
+    print("\n");
+    print("half 7 = ");
+    print(force(half(7)));
+    print("\n");
+
+    print("withDefault Some(3) = ");
+    print(withDefault(Some(3), 99));
+    print("\n");
+    print("withDefault None = ");
+    print(withDefault(None, 99));
+    print("\n");
+
+    print("halfOrZero Ok(8) = ");
+    print(tryHalf(halfOrZero(Ok(8))));
+    print("\n");
+    print("halfOrZero Ok(9) = ");
+    print(tryHalf(halfOrZero(Ok(9))));
+    print("\n");
+    print("halfOrZero Err = ");
+    print(tryHalf(halfOrZero(Err("boom"))));
+    print("\n");
+
+    // panic and assert operations
+    assert(1 + 1 == 2);
+    print("assert ok\n");
+    if (withDefault(None, 0) == 0) {
+        print("none default applied\n");
+    }
+}

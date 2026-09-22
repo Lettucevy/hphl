@@ -1,0 +1,66 @@
+// arrays.hphl — arrays fixos + foreach (Milestone 2)
+
+int[5] g = {10, 20, 30, 40, 50};
+
+void Main() {
+    int[5] nums = {1, 2, 3, 4, 5};
+
+    int soma = 0;
+    foreach (var x in nums) {
+        soma += x;
+    }
+    print("soma 1..5 = ");
+    print(soma);
+    print("\n");
+
+    print("g[2] = ");
+    print(g[2]);
+    print("\n");
+
+    nums[0] = 100;
+    print("nums[0] = ");
+    print(nums[0]);
+    print("\n");
+
+    nums[1]++;
+    print("nums[1] = ");
+    print(nums[1]);
+    print("\n");
+
+    print("length = ");
+    print(nums.Length);
+    print("\n");
+
+    heap int[4] din = {7, 8, 9, 10};
+    int soma2 = 0;
+    foreach (int v in din) {
+        soma2 += v;
+    }
+    print("soma heap = ");
+    print(soma2);
+    print("\n");
+
+    float[3] fs = {1.5, 2.5, 3.0};
+    float totalF = 0.0;
+    foreach (var v in fs) {
+        totalF += v;
+    }
+    print("soma floats = ");
+    print(totalF);
+    print("\n");
+
+    int[2][2] m = {{1, 2}, {3, 4}};
+    print("m[1][0] = ");
+    print(m[1][0]);
+    print("\n");
+
+    int total = 0;
+    for (int r = 0; r < 2; r++) {
+        for (int c = 0; c < 2; c++) {
+            total += m[r][c];
+        }
+    }
+    print("total m = ");
+    print(total);
+    print("\n");
+}

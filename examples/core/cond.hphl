@@ -1,0 +1,36 @@
+// Conditional access `?.` on class references
+class Player {
+  string nome;
+  int vida;
+  Player(string nome, int vida) {
+    this.nome = nome;
+    this.vida = vida;
+  }
+  void Move(int dx) { this.vida = this.vida + dx; }
+  int Vida() { return this.vida; }
+  string Exclamar() { return this.nome + "!"; }
+}
+
+void Main() {
+  Player p = null;
+
+  p?.Move(10); // método void: skip quando p é null
+  int a = p?.Vida() ?? -1; // int → Option<int>, None vira -1
+  print(a, "\n");
+
+  string s = p?.nome; // string → referência null-merged
+  print(s == null ? "sem nome\n" : s, "\n");
+
+  p = new Player("ana", 100);
+  p?.Move(10);
+  int b = p?.Vida() ?? 0;
+  print(b, "\n");
+
+  string n2 = p?.nome;
+  print(n2, "\n");
+
+  string ex = p?.Exclamar();
+  print(ex, "\n");
+
+  print(p?.Vida() ?? 0, "\n");
+}

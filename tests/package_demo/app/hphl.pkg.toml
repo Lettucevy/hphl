@@ -1,0 +1,7 @@
+name = "my_app"
+version = "0.5.0"
+entry = "main.hphl"
+sources = ["main.hphl"]
+
+[dependencies]
+lib_math = "path:../lib_math"

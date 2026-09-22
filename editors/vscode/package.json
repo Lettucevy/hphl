@@ -1,0 +1,228 @@
+{
+  "name": "hphl",
+  "displayName": "HPHL Language Support",
+  "icon": "icon.png",
+  "description": "%extension.description%",
+  "version": "1.0.0",
+  "publisher": "hphl",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/hphl/hphl"
+  },
+  "engines": {
+    "vscode": "^1.75.0"
+  },
+  "categories": [
+    "Programming Languages",
+    "Debuggers",
+    "Linters",
+    "Snippets"
+  ],
+  "keywords": [
+    "hphl",
+    "compiler",
+    "debugger",
+    "lsp",
+    "dap"
+  ],
+  "main": "./dist/extension.js",
+  "activationEvents": [
+    "onLanguage:hphl",
+    "onDebugResolve:hphl"
+  ],
+  "contributes": {
+    "languages": [
+      {
+        "id": "hphl",
+        "aliases": [
+          "HPHL",
+          "hphl",
+          "HP-HL"
+        ],
+        "extensions": [
+          ".hphl"
+        ],
+        "configuration": "./language-configuration.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "hphl",
+        "scopeName": "source.hphl",
+        "path": "./syntaxes/hphl.tmLanguage.json"
+      }
+    ],
+    "snippets": [
+      {
+        "language": "hphl",
+        "path": "./snippets/hphl.json"
+      }
+    ],
+    "breakpoints": [
+      {
+        "language": "hphl"
+      }
+    ],
+    "debuggers": [
+      {
+        "type": "hphl",
+        "label": "%debug.label%",
+        "languages": [
+          "hphl"
+        ],
+        "configurationAttributes": {
+          "launch": {
+            "required": [
+              "program"
+            ],
+            "properties": {
+              "program": {
+                "type": "string",
+                "description": "%debug.program.description%",
+                "default": "${file}"
+              },
+              "args": {
+                "type": "array",
+                "description": "%debug.args.description%",
+                "items": {
+                  "type": "string"
+                },
+                "default": []
+              },
+              "cwd": {
+                "type": "string",
+                "description": "%debug.cwd.description%",
+                "default": "${workspaceFolder}"
+              },
+              "stopOnEntry": {
+                "type": "boolean",
+                "description": "%debug.stopOnEntry.description%",
+                "default": false
+              }
+            }
+          }
+        },
+        "initialConfigurations": [
+          {
+            "type": "hphl",
+            "name": "%debug.launch.name%",
+            "request": "launch",
+            "program": "${file}",
+            "cwd": "${workspaceFolder}"
+          }
+        ]
+      }
+    ],
+    "configuration": {
+      "title": "%config.title%",
+      "properties": {
+        "hphl.compilerPath": {
+          "type": "string",
+          "default": "",
+          "description": "%config.compilerPath.description%"
+        },
+        "hphl.backend": {
+          "type": "string",
+          "enum": [
+            "x64",
+            "llvm",
+            "ir"
+          ],
+          "default": "x64",
+          "description": "%config.backend.description%"
+        },
+        "hphl.trace.server": {
+          "type": "string",
+          "enum": [
+            "off",
+            "messages",
+            "verbose"
+          ],
+          "default": "off",
+          "description": "%config.trace.server.description%"
+        }
+      }
+    },
+    "commands": [
+      {
+        "command": "hphl.runFile",
+        "title": "%command.runFile%",
+        "icon": "$(play)"
+      },
+      {
+        "command": "hphl.debugFile",
+        "title": "%command.debugFile%",
+        "icon": "$(debug-alt)"
+      },
+      {
+        "command": "hphl.selectBackend",
+        "title": "%command.selectBackend%",
+        "icon": "$(gear)"
+      },
+      {
+        "command": "hphl.buildFile",
+        "title": "%command.buildFile%"
+      },
+      {
+        "command": "hphl.restartLsp",
+        "title": "%command.restartLsp%"
+      }
+    ],
+    "menus": {
+      "editor/title": [
+        {
+          "command": "hphl.runFile",
+          "when": "resourceExtname == .hphl",
+          "group": "navigation@1"
+        },
+        {
+          "command": "hphl.debugFile",
+          "when": "resourceExtname == .hphl",
+          "group": "navigation@2"
+        },
+        {
+          "command": "hphl.selectBackend",
+          "when": "resourceExtname == .hphl",
+          "group": "navigation@3"
+        }
+      ],
+      "editor/context": [
+        {
+          "command": "hphl.runFile",
+          "when": "resourceExtname == .hphl",
+          "group": "navigation@1"
+        },
+        {
+          "command": "hphl.debugFile",
+          "when": "resourceExtname == .hphl",
+          "group": "navigation@2"
+        },
+        {
+          "command": "hphl.buildFile",
+          "when": "resourceExtname == .hphl",
+          "group": "navigation@3"
+        },
+        {
+          "command": "hphl.selectBackend",
+          "when": "resourceExtname == .hphl",
+          "group": "navigation@4"
+        }
+      ]
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run build",
+    "build": "node esbuild.js",
+    "watch": "node esbuild.js --watch"
+  },
+  "dependencies": {
+    "vscode-languageclient": "^9.0.1"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "@types/vscode": "^1.75.0",
+    "esbuild": "^0.20.2",
+    "typescript": "^5.3.3"
+  }
+}

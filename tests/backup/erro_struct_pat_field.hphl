@@ -1,0 +1,14 @@
+// erro: campo inexistente no padrão de struct
+struct Ponto {
+  int x;
+  int y;
+}
+
+void Main() {
+  Ponto p = new Ponto(1, 2);
+  int r = match (p) {
+    Ponto(x: 0, z: 5) => 1,
+    _ => 2,
+  };
+  print(r, "\n");
+}

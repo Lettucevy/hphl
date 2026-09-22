@@ -1,0 +1,29 @@
+// bench_compile.hphl — M20-H 13.1: bench simples host vs self-host
+import "src/ast/ast.hphl";
+import "src/frontend/token.hphl";
+import "src/frontend/lexer.hphl";
+import "src/frontend/parser.hphl";
+import "src/semantic/semantic.hphl";
+import "src/codegen/codegen.hphl";
+
+void Main() {
+    string src = read_file("../selfhost/demo.hphl");
+    if (src == "") {
+        println("[bench] ../selfhost/demo.hphl nao encontrado");
+        return;
+    }
+    Parser p = new Parser(new Lexer(src));
+    Decl prog = p.ParseProgram();
+    println("[bench] parse: OK");
+
+    Semantic sem = new Semantic();
+    int errs = sem.CheckProgram(prog);
+    println("[bench] semantic: ", errs, " erros");
+
+    CG cg = new CG();
+    cg.GenProgram(prog);
+    println("[bench] codegen: ", cg.ln, " linhas");
+
+    cg.FlushTo("../test_selfhost/bench.s");
+    println("[bench] wrote bench.s");
+}

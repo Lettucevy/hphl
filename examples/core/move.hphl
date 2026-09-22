@@ -1,0 +1,20 @@
+// move.hphl: MOVE semantics between memory-managed references
+// `b = a` transfers ownership; using `a` afterwards is a compile-time
+// error (USE AFTER MOVE) and the block is freed exactly once
+class Inimigo {
+    public int vida;
+}
+
+void Main() {
+    heap Inimigo a;
+    heap Inimigo b;
+    a.vida = 10;
+    b = a;              // MOVE: b assume a posse do objeto
+    println(b.vida);
+
+    // origin can receive fresh ownership and become valid again
+    heap Inimigo c;
+    c.vida = 99;
+    a = c;
+    println(a.vida);
+}

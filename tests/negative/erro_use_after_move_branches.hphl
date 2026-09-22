@@ -1,0 +1,20 @@
+// erro_use_after_move_branches.hphl — movido em AMBOS os ramos do if
+// domina os usos posteriores: continua sendo erro (M11.6, spec §3)
+class P {
+    public int v;
+}
+
+void Main() {
+    heap P a;
+    heap P b;
+    heap P d;
+    a.v = 1;
+
+    int c = 5;
+    if (c > 3) {
+        b = a;
+    } else {
+        d = a;
+    }
+    println(a.v);
+}

@@ -1,0 +1,14 @@
+// erro_async_ref.hphl - teste negativo: parâmetro ref/out/in em função async
+// não é suportado no M2 (o env da tarefa copia os parâmetros por valor)
+async int Ler(out int v) { // erro: out em async
+    v = 5;
+    return v;
+}
+
+void Main() {
+    int x = 0;
+    int a = Ler(out x);
+    print(a);
+    print("\n");
+    print("done\n");
+}

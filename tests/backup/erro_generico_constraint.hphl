@@ -1,0 +1,7 @@
+int Somar<T>(T a, T b, int offset) where T : class {
+  return offset;
+}
+
+void Main() {
+  print(Somar<int>(1, 2, 3));
+}

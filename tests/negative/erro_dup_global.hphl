@@ -1,0 +1,8 @@
+// erro_dup_global.hphl - duas funções globais com mesmo nome e mesma
+// aridade são rejeitadas.
+int Add(int a, int b) { return a + b; }
+int Add(int x, int y) { return x - y; }
+
+void Main() {
+  print("nope\n");
+}

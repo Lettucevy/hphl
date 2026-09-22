@@ -1,0 +1,36 @@
+// threadlocal.hphl: Thread-local storage variables with per-thread isolation
+// slot por thread. Com o scheduler de workers (v0.22.6) o slot pertence à
+// WORKER (não à tarefa): tarefas na mesma worker compartilham o bloco. Cada
+// tarefa soma +1 mil vezes no SEU momento de execução, envia o valor e zera
+// o slot ao sair — então cada envio é sempre exatamente 1000 e o total é
+// 3000, sem corrida e independente de quantas tarefas caem na mesma worker.
+threadlocal int soma;
+
+async void tarefa(channel<int> c) {
+    int i = 0;
+    while (i < 1000) {
+        soma = soma + 1;
+        i++;
+    }
+    c.Send(soma); // 1000 sempre (bloco zerado ao entrar na tarefa)
+    soma = 0;     // devolve o bloco zerado para a próxima tarefa da worker
+}
+
+void Main() {
+    channel<int> c = new channel<int>(8);
+    tarefa(c);
+    tarefa(c);
+    tarefa(c);
+
+    int total = 0;
+    total = total + c.Receive();
+    total = total + c.Receive();
+    total = total + c.Receive();
+    print("soma das tarefas = ");
+    print(total); // 1000 + 1000 + 1000 = 3000
+    print("\n");
+    print("slot da main = ");
+    print(soma); // bloco da main nunca foi tocado: 0
+    print("\n");
+    print("done\n");
+}

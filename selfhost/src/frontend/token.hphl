@@ -1,0 +1,21 @@
+module Token;
+
+// ===========================================================================
+// selfhost/src/frontend/token.hphl — Definições de Token da linguagem
+// Espelha compiler/src/frontend/token.h
+// ===========================================================================
+
+enum TokenKind {
+    Eof,
+    Ident,
+    Number,
+    Str,
+    Punct,
+    Keyword
+}
+
+class Token {
+    int kind;
+    string text;
+    Token(int k, string t) { this.kind = k; this.text = t; }
+}

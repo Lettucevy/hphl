@@ -1,0 +1,5 @@
+interface I {
+  void F(int a);
+}
+class C : I { }
+void Main() { }

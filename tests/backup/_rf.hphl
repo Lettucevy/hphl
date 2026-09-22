@@ -1,0 +1,5 @@
+void Main() {
+    write_file("teste.txt", "conteudo");
+    string s = read_file("teste.txt");
+    println(s);
+}

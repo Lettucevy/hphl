@@ -1,0 +1,11 @@
+// dbg_teste5.hphl: Breakpoint hit-count verification
+void Main() {
+	int i = 0;
+	while (i < 5) {
+		i = i + 1;
+		print(i);
+		print("\n");
+	}
+	print(999);
+	print("\n");
+}

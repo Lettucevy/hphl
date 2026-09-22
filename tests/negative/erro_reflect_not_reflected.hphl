@@ -1,0 +1,6 @@
+class P {
+    public int x;
+}
+void Main() {
+    print(SizeOf(P));
+}

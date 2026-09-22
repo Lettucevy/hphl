@@ -1,0 +1,34 @@
+// gc_gen_minor.hphl: Generational minor GC validation (nursery + remembered set)
+// Creates old object, creates young object, links old->young, triggers minor GC
+// Young object must survive via remembered set card table tracking
+class Node {
+    int v;
+    Node next;
+    Node(int x) { this.v = x; this.next = null; }
+}
+void Main() {
+    print("GC gen minor: old->young via remembered set\n");
+    // create old object (survives 2 minor collections -> promoted)
+    Node old = new Node(100);
+    // triggers minor GC to promote object to mature generation
+    // Cada gc_stress-like alloc de 1500 objects faz minor? Mas aqui usamos loop simples
+    // Criar young objects mortos (devem ser coletados em minor sem afetar old)
+    for (int i = 0; i < 10; i++) {
+        Node tmp = new Node(i); // young morto (sem root)
+    }
+    // agora old é old (após 2 minors internos do loop? mas sem trigger explicito,
+    // o GC minor é chamado automaticamente no epilogo de Main? Forçamos via alocação)
+    // creates young object and links to old (old->young reference)
+    Node y = new Node(999);
+    old.next = y; // write barrier: old (old) -> y (young) deve marcar card
+    // aloca young mortos para triggerar minor (y deve sobreviver via remembered set)
+    for (int j = 0; j < 500; j++) {
+        Node t = new Node(j);
+    }
+    // verifies that young object remains accessible through old reference
+    if (old.next != null && old.next.v == 999) {
+        print("GC gen minor PASS (y sobreviveu via remembered set)\n");
+    } else {
+        print("GC gen minor FAIL\n");
+    }
+}

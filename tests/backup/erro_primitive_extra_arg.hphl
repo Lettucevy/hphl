@@ -1,0 +1,8 @@
+// erro_primitive_extra_arg.hphl - teste negativo (v0.24.0): mutex não aceita
+// argumento; somente semaphore/barrier recebem N.
+
+void Main() {
+    mutex m(3);
+    m.Lock();
+    print("nunca");
+}

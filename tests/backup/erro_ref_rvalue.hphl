@@ -1,0 +1,8 @@
+// ref/out não aceitam rvalue: argumento precisa ser variável/campo/elemento
+public void Aumentar(ref int valor) {
+  valor += 1;
+}
+
+public void Main() {
+  Aumentar(ref 5 + 1);
+}

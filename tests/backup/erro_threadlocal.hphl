@@ -1,0 +1,8 @@
+// erro_threadlocal.hphl - teste negativo: 'threadlocal' só se aplica a
+// variáveis globais no Milestone 2 (o runtime dá um slot por thread apenas
+// para globais; locais vivem na stack da função)
+
+void Main() {
+    threadlocal int t = 1;
+    print(t);
+}
