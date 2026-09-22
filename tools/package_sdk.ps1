@@ -231,7 +231,7 @@ code --install-extension editors/hphl-1.0.0.vsix
 - `editors/`: Pacote da extensão do VS Code / Cursor (.vsix).
 
 Documentação online: https://hphl.dev
-Repositório: https://github.com/hphl/hphl
+Repositório: https://github.com/Lettucevy/hphl
 "@
 Set-Content -Path (Join-Path $StagingDir "README.md") -Value $sdkReadmeContent -Encoding UTF8
 

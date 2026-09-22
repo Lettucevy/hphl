@@ -95,7 +95,7 @@ The compiler and runtime are bundled together. To run a program:
   ./hello
 
 ABI version: see runtime/VERSION
-Source: https://github.com/hphl/hphl
+Source: https://github.com/Lettucevy/hphl
 Docs:   https://hphl.dev/docs
 "@
     Set-Content -Path (Join-Path $staging "README.md") -Value $readme
