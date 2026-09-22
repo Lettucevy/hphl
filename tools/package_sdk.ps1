@@ -58,6 +58,9 @@ Write-Host "--> Copiando runtime..." -ForegroundColor Green
 $runtimeDir = Join-Path $StagingDir "runtime"
 New-Item -ItemType Directory -Path $runtimeDir -Force | Out-Null
 Copy-Item (Join-Path $RootDir "runtime/VERSION") -Destination $runtimeDir -Force
+if (Test-Path (Join-Path $RootDir "compiler/src/runtime")) {
+    Copy-Item (Join-Path $RootDir "compiler/src/runtime/*") -Destination $runtimeDir -Recurse -Force
+}
 if (Test-Path (Join-Path $RootDir "runtime/include")) {
     Copy-Item (Join-Path $RootDir "runtime/include") -Destination $runtimeDir -Recurse -Force
 }
