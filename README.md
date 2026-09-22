@@ -10,7 +10,7 @@
 </p>
 
 <p align="center">
-  <a href="https://hphl.dev"><img src="https://img.shields.io/badge/version-1.0.0-emerald.svg" alt="Version 1.0.0"></a>
+  <a href="https://velaface.com/hphl"><img src="https://img.shields.io/badge/version-1.0.0-emerald.svg" alt="Version 1.0.0"></a>
   <a href="docs/installation.md"><img src="https://img.shields.io/badge/platform-Windows%20%7C%20Linux%20%7C%20macOS-blue.svg" alt="Platforms"></a>
   <a href="docs/index.md"><img src="https://img.shields.io/badge/docs-official-cyan.svg" alt="Documentation"></a>
 </p>
@@ -91,7 +91,7 @@ msiexec /i hphl-v1.0.0-windows-x64.msi /quiet /qn
 
 #### Option 3: Terminal One-Liner (PowerShell)
 ```powershell
-irm https://hphl.dev/install.ps1 | iex
+irm https://velaface.com/hphl/install.ps1 | iex
 ```
 
 #### Option 4: Portable SDK (.zip)
@@ -102,7 +102,7 @@ Download and extract **`hphl-sdk-v1.0.0-windows-x64.zip`**, then run `install.ba
 ### Linux & macOS
 
 ```bash
-curl -fsSL https://hphl.dev/install.sh | bash
+curl -fsSL https://velaface.com/hphl/install.sh | bash
 ```
 
 For manual setup and offline archives, see the [Installation Guide](docs/installation.md).
