@@ -96,7 +96,7 @@ void usage() {
       << "Usage: hphlc <file.hphl> [options]\n\n"
       << "Options:\n"
       << "  -o <path>                Output executable or object path (default: <file>.exe)\n"
-      << "  --backend <x64|llvm|ir>  Code generation backend (default: x64)\n"
+      << "  --backend <x64|llvm|ir>  Code generation backend (default: x64; ir emits .ll only, no executable)\n"
       << "  -O0, -O1, -O2, -O3       Optimization level for LLVM backend (default: -O0)\n"
       << "  --run                    Compile, link and execute the program immediately\n"
       << "  --keep-asm               Keep intermediate assembly (.s) or IR (.ll) file\n"
@@ -1375,6 +1375,14 @@ int main(int argc, char** argv) {
       }
       if (opts.backend == "ir") {
         std::string irPath = dirOf(outBase) + sep + baseOf(opts.input) + ".ll";
+        if (!opts.output.empty()) {
+          if (opts.output.size() >= 3 &&
+              opts.output.compare(opts.output.size() - 3, 3, ".ll") == 0) {
+            irPath = opts.output;  // honor explicit -o foo.ll
+          } else {
+            std::cerr << "hphlc: " << hphl::messages().get("cli_ir_o_ignored", {opts.output, irPath}) << "\n";
+          }
+        }
         hphl::Irgen irgen(semantic, opts.input, opts.debug);
         std::string irText = irgen.generate();
         if (!writeFile(irPath, irText)) {

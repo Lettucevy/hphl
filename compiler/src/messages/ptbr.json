@@ -181,6 +181,7 @@
   "cli_publish_failed": "publish falhou: {0}",
   "cli_package_info": "pacote {0} v{1}",
   "cli_llvm_ir_generated": "LLVM IR gerado em '{0}'",
+  "cli_ir_o_ignored": "--backend ir emite apenas LLVM IR (gravado em '{1}'); ignorando -o '{0}' (nenhum executável é linkado; use --backend llvm para gerar um executável)",
   "cli_llvm_obj_generated": "object file gerado via LLVM API em '{0}' (-O{1})",
   "cli_wasm_generated": "módulo WASM gerado em '{0}' (-O{1})",
   "cli_wasm_link_failed": "falha ao linkar WASM (wasm-ld retornou {0})",

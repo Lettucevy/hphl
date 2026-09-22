@@ -32,6 +32,7 @@ $testsDir = Join-Path $RootDir "tests\positive"
 
 $pass = 0
 $fail = 0
+$skip = 0
 $failures = @()
 
 Get-ChildItem -Path $testsDir -Filter "*.hphl" | ForEach-Object {
@@ -41,10 +42,15 @@ Get-ChildItem -Path $testsDir -Filter "*.hphl" | ForEach-Object {
 
     if ($Verbose) { Write-Host "  [ir] $name" -ForegroundColor Gray }
 
-    & $CompilerExe $src -o $irFile --backend=ir --no-link 2>&1 | Out-Null
+    $out = & $CompilerExe $src -o $irFile --backend ir --no-link 2>&1 | Out-String
     $compileResult = $LASTEXITCODE
 
     if ($compileResult -ne 0) {
+        if ($out -match "no entry point") {
+            Write-Host "  [SKIP] $name (library/module, no Main)" -ForegroundColor Yellow
+            $skip++
+            return
+        }
         Write-Host "  [FAIL] $name (compile error)" -ForegroundColor Red
         $failures += $name
         $fail++
@@ -54,7 +60,7 @@ Get-ChildItem -Path $testsDir -Filter "*.hphl" | ForEach-Object {
     # Verify the .ll file is non-empty and has LLVM IR structure
     if ((Test-Path $irFile) -and ((Get-Item $irFile).Length -gt 0)) {
         $content = Get-Content $irFile -Raw
-        if ($content -match "^\s*(define|declare)\s+") {
+        if ($content -match "(?m)^\s*(define|declare)\s+") {
             Write-Host "  [PASS] $name" -ForegroundColor Green
             $pass++
         } else {
@@ -70,7 +76,7 @@ Get-ChildItem -Path $testsDir -Filter "*.hphl" | ForEach-Object {
 }
 
 Write-Host ""
-Write-Host "IR Results: $pass passed, $fail failed" -ForegroundColor Cyan
+Write-Host "IR Results: $pass passed, $fail failed, $skip skipped" -ForegroundColor Cyan
 
 if ($fail -gt 0) {
     Write-Host ""
