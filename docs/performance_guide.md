@@ -65,6 +65,9 @@ All implementations were verified for mathematical deterministic convergence (id
 > [!TIP]
 > **Key Takeaway:** In compute-intensive simulation and matrix algebra, HP-HL `struct` value types match or outperform C++ GCC and Clang through AVX2 vectorization and zero pointer indirection. Even in managed `class` mode, HP-HL remains within 15% of C++ and outperforms C# and Java by 1.5x–5x. In dynamic allocation workloads like Binary Trees, HP-HL's Immix nursery allocates faster than C++ `new/delete`.
 
+> [!WARNING]
+> **Benchmark honesty note (added post-v1.0.0):** the `class` / Binary-Trees numbers above were produced by an LLVM backend that **never ran the collector** (objects were `calloc`'d and never freed), so they measure allocator throughput, not GC behavior — the "beats `malloc`" row flatters HP-HL. Totals also say nothing about **frame-loop pause distribution (p99 vs 16.6ms)**, the number a game engine lives or dies by. We are fixing both: GC is being integrated into the LLVM backend on `dev-v2`, and `bench/definitive/06_gc_frame_pauses` (+`06b`) reports per-frame p50/p95/p99/max with checksums identical across HP-HL/GCC/Clang. These v1.0.0 numbers stay published for transparency and will be re-baselined once collection is real.
+
 ---
 
 ## Performance Best Practices

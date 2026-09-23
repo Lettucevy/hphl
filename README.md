@@ -13,7 +13,12 @@
   <a href="https://velaface.com/hphl"><img src="https://img.shields.io/badge/version-1.0.0-emerald.svg" alt="Version 1.0.0"></a>
   <a href="docs/installation.md"><img src="https://img.shields.io/badge/platform-Windows%20%7C%20Linux%20%7C%20macOS-blue.svg" alt="Platforms"></a>
   <a href="docs/index.md"><img src="https://img.shields.io/badge/docs-official-cyan.svg" alt="Documentation"></a>
+  <img src="https://img.shields.io/badge/status-in_development-orange.svg" alt="Status: In Development">
 </p>
+
+> ⚠️ **Development status — not production ready.** HP-HL v1.0.0 is a **proof of concept**: it already compiles real programs (tools, 2D games, HTTP servers, benchmarks that match C++ in codegen), but the language is still under active development with **known gaps** (see below). Do not use it for production systems yet. The **production-ready target is v2**, to be proven by a Vulkan game engine (Prokion) built entirely in HP-HL.
+>
+> **Known gaps in v1 (non-exhaustive):** GC tracing under cyclic-graph pressure (heap corruption under investigation on `dev-v2`); LLVM backend historically never collected (being integrated on `dev-v2`); x64 crashes when dropping/overwriting `list<class>` with live elements; `&&` without short-circuit; desktop UI libraries, DB drivers (`std.db.*`), HTTP server (`std.http`), serialization (`std.serde`) and TLS not yet shipped — all scheduled for v1.1/v1.2/v2.0 (see [docs](docs/index.md)).
 
 ---
 

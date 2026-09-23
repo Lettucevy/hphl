@@ -1,5 +1,7 @@
 # HP-HL Official Documentation
 
+> ⚠️ **Development status — not production ready.** v1.0.0 is a **proof of concept**: it compiles real programs (tools, 2D games, HTTP servers, C++-parity codegen benchmarks), but ships with **known gaps** — GC tracing under cyclic-graph pressure, `list<class>` lifetime crashes on x64, missing `std.db.*` / `std.http` / `std.serde` / TLS / desktop UI libraries (all scheduled for v1.1–v2.0). Good for experiments and side projects, **not for production systems**. The production-ready target is **v2**, proven by a Vulkan game engine (Prokion) written entirely in HP-HL.
+
 Welcome to the official documentation for **HP-HL (High-Performance High-Level Language)**.
 
 HP-HL is a compiled, statically-typed systems programming language designed specifically for **game engines, physical simulations, computer graphics, low-latency backends, and WebAssembly**, combining the productivity and expressiveness of modern languages with the control and raw execution speed of C and C++.
