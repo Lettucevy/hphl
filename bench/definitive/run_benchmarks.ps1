@@ -17,6 +17,9 @@ $JavaDir = Join-Path $ScriptDir "java"
 Write-Host "========================================================================" -ForegroundColor Cyan
 Write-Host "   HP-HL vs C++ vs C# vs Java -- SUITE DE BENCHMARK DEFINITIVO v1.0.0" -ForegroundColor Cyan
 Write-Host "========================================================================" -ForegroundColor Cyan
+Write-Host 'AVISO: v1.0.0 e prova de conceito, nao production ready. As linhas' -ForegroundColor Yellow
+Write-Host '`class`/Binary-Trees foram medidas com backend LLVM que nunca coletava;' -ForegroundColor Yellow
+Write-Host 'totais nao provam frame-loop (ver bench 06 p50/p95/p99 vs 16.6ms).' -ForegroundColor Yellow
 Write-Host 'Ambiente:         Intel(R) Xeon(R) CPU E5-2640 v4 @ 2.40GHz | 16 GB | Win x64'
 Write-Host 'C++ (GCC):        GCC 16.1.0 (-O3 -march=native)'
 Write-Host 'C++ (Clang):      Clang 22.1.4 (-O3 -march=native)'
@@ -242,6 +245,7 @@ $md += @"
 2. **Superioridade em Alocação e GC (Binary Trees):** No teste de estresse de memória com árvores binárias profundas, o coletor geracional Immix do HP-HL superou a alocação padrão `malloc/delete` do C++ em ~10%, e superou o garbage collector de C# e Java graças ao alocador bump-pointer no nursery jovem.
 3. **Ponto Flutuante Puro e Raytracing:** Em computação escalar de ponto flutuante e traçado de raio, o C++ GCC e Clang mantêm pequena vantagem de otimização de registradores e inlining vetorial (C++ ~25.9 ms vs HP-HL ~37.4 ms), demonstrando transparência e rigor absoluto nos números apresentados.
 4. **Reprodutibilidade:** Todos os arquivos de benchmark estão disponíveis no repositório em `bench/definitive/` e podem ser compilados e executados localmente por qualquer desenvolvedor.
+5. **Nota de honestidade (pós-v1.0.0):** as linhas `class`/Binary-Trees acima foram medidas com um backend LLVM que nunca executava o coletor (medem vazão de alocação, não GC), e totais nada dizem sobre pausas por frame (p99 vs 16.6ms). Ver `bench/definitive/06_gc_frame_pauses` (+`06b`) e `GC_PAUSE_RESULTS.md`. Estes números seguem publicados e serão re-medidos com coleta real.
 "@
 
 Set-Content -Path $mdPath -Value $md -Encoding utf8
